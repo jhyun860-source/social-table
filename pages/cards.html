@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>현장 카드 · 소셜 테이블</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="../index.html" class="back-btn"><i class="ti ti-arrow-left"></i></a>
+    <div class="flex-center">
+      <span class="badge" id="gender-badge"></span>
+      <span style="font-size:14px;font-weight:500;color:var(--txt);margin-left:6px;" id="opp-label"></span>
+    </div>
+    <div class="flex-center" style="gap:6px;">
+      <div class="zzim-dots" id="zzim-dots"></div>
+      <span style="font-size:11px;color:var(--txt3);" id="zzim-count">0/3</span>
+    </div>
+  </div>
+  <div class="container page-content">
+    <div id="match-banner-container"></div>
+    <div class="hint"><i class="ti ti-info-circle"></i>하트로 최대 <span id="hint-max" style="color:var(--pink);font-weight:500;">3</span>명 찜할 수 있어요. 찜 결과는 관리자만 확인해요.</div>
+    <div id="cards-list"><div style="text-align:center;padding:28px;color:var(--txt3);">불러오는 중...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal-sheet" style="position:relative;">
+    <div class="modal-handle"></div>
+    <button style="position:absolute;top:14px;right:18px;background:none;border:none;cursor:pointer;color:var(--txt3);font-size:18px;" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    <div style="font-size:10px;color:var(--txt3);margin-bottom:2px;" id="m-num"></div>
+    <div style="font-size:18px;font-weight:500;color:var(--txt);" id="m-nick"></div>
+    <div class="intro-box" id="m-intro"></div>
+    <div class="detail-row"><span class="detail-label">MBTI</span><span class="detail-value" id="m-mbti"></span></div>
+    <div class="detail-row"><span class="detail-label">직업</span><span class="detail-value" id="m-job"></span></div>
+    <div class="detail-row"><span class="detail-label">술 스타일</span><span class="detail-value" id="m-drink"></span></div>
+    <div class="detail-row"><span class="detail-label">주량</span><span class="detail-value" id="m-drinking"></span></div>
+    <div class="detail-row"><span class="detail-label">쉬는 날</span><span class="detail-value" id="m-rest"></span></div>
+    <div id="m-dynamic-questions"></div>
+    <button class="btn mt-12" id="zzim-modal-btn" onclick="toggleZzimModal()">
+      <i class="ti ti-heart"></i><span id="zzim-modal-txt">찜하기</span>
+    </button>
+  </div>
+</div>
+
+<script type="module">
+  import { getEvent, getEvents, getParticipants, watchParticipants, getMyZzims, addZzim, removeZzim, numLabel, getSettings } from '../js/data.js';
+
+  const params   = new URLSearchParams(location.search);
+  let eventId    = params.get('event')  || sessionStorage.getItem('st_event');
+  let myId       = sessionStorage.getItem('st_my_id');
+  let myGender   = sessionStorage.getItem('st_gender');
+
+  // 인증 정보 없으면 로그인 페이지로 튕기기
+  if (!myId || !myGender) {
+    alert('본인 확인이 필요합니다.');
+    location.href = 'login.html';
+  }
+
+  const oppGender = myGender === 'f' ? 'm' : 'f';
+
+  let ev      = null;
+  let zzimMax = 3;
+  let modalId = null;
+  let allPts  = [];
+  let myZzims = [];
+
+  document.getElementById('gender-badge').textContent = myGender==='f' ? '여자 입장' : '남자 입장';
+  document.getElementById('gender-badge').className   = 'badge ' + (myGender==='f'?'badge-f':'badge-m');
+  document.getElementById('opp-label').textContent    = oppGender==='f' ? '여자 카드' : '남자 카드';
+
+  // 질문 라벨 로드
+  window._qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
+  (async () => {
+    try {
+      const settings = await getSettings();
+      if (settings?.questions?.length) window._qLabels = settings.questions;
+    } catch(e) {}
+  })();
+
+  async function init() {
+    try {
+      // event ID 없으면 활성 모임 자동 찾기
+      if (!eventId) {
+        const events = await getEvents();
+        const active = events.find(e => e.status === 'active');
+        eventId = active?.id || '';
+        if (eventId) sessionStorage.setItem('st_event', eventId);
+      }
+
+      if (!eventId) {
+        document.getElementById('cards-list').innerHTML = '<div class="card" style="text-align:center;padding:28px;color:var(--txt3);">진행 중인 모임이 없어요.</div>';
+        return;
+      }
+
+      ev      = await getEvent(eventId);
+      zzimMax = ev?.zzimMax || 3;
+      document.getElementById('hint-max').textContent = zzimMax;
+
+      // 상대방(이성) 중 번호 지정된 사람만 불러오기
+      const rawOppPts = await getParticipants(eventId, oppGender);
+      allPts  = rawOppPts.filter(p => p.number);
+      myZzims = await getMyZzims(myId, eventId);
+      await showMatchBanner(myZzims, allPts);
+
+      // 실시간 감시를 위해 초기 로드 시에도 전체 참여자 목록 필요
+      const pts = await getParticipants(eventId);
+      const me  = pts.find(p => p.id === myId);
+
+      // 1. 본인이 번호 지정을 받았는지 확인
+      // 2. 상대방 성별 중 번호 지정된 사람이 있는지 확인
+      const hasNumbered = allPts.some(p => p.number);
+      
+      if (!me || !me.number || !hasNumbered) {
+        let msg = "관리자가 자리 배치 중이에요.<br>조금만 기다려 주세요 :)";
+        if (me && !me.number) msg = "회원님의 번호가 아직 지정되지 않았습니다.<br>잠시만 기다려 주시면 관리자가 안내해 드릴 거예요.";
+        
+        document.getElementById('cards-list').innerHTML = `
+          <div class="card" style="text-align:center;padding:36px 20px;">
+            <div style="font-size:32px;margin-bottom:12px;">🍸</div>
+            <div style="font-size:15px;font-weight:500;color:var(--txt);margin-bottom:8px;">잠시만요!</div>
+            <div style="font-size:13px;color:var(--txt3);line-height:1.8;">${msg}</div>
+          </div>`;
+      } else {
+        renderDots();
+        renderCards();
+      }
+
+      // 실시간 리스너 — 번호 지정되면 새로고침 없이 자동으로 카드 공개
+      watchParticipants(eventId, async (pts) => {
+        const me = pts.find(p => p.id === myId);
+        // 상대방 중 '번호가 지정된' 사람만 필터링
+        const oppPts = pts.filter(p => p.gender === oppGender && p.number);
+        const nowHasNumbered = oppPts.length > 0;
+        
+        // 본인 번호와 상대방 번호가 모두 있어야 렌더링
+        if (me && me.number && nowHasNumbered) {
+          allPts = oppPts;
+          myZzims = await getMyZzims(myId, eventId);
+          renderDots();
+          renderCards();
+        } else {
+          // 상태가 변해서 다시 가려야 할 경우 (관리자가 번호 취소 등)
+          let msg = "관리자가 자리 배치 중이에요.<br>조금만 기다려 주세요 :)";
+          if (me && !me.number) msg = "회원님의 번호가 아직 지정되지 않았습니다.<br>잠시만 기다려 주시면 관리자가 안내해 드릴 거예요.";
+          
+          document.getElementById('cards-list').innerHTML = `
+            <div class="card" style="text-align:center;padding:36px 20px;">
+              <div style="font-size:32px;margin-bottom:12px;">🍸</div>
+              <div style="font-size:15px;font-weight:500;color:var(--txt);margin-bottom:8px;">잠시만요!</div>
+              <div style="font-size:13px;color:var(--txt3);line-height:1.8;">${msg}</div>
+            </div>`;
+        }
+      });
+    } catch(e) {
+      console.error(e);
+      document.getElementById('cards-list').innerHTML = '<div class="card" style="text-align:center;padding:28px;color:var(--txt3);">오류가 발생했어요: ' + e.message + '</div>';
+    }
+  }
+
+  function renderDots() {
+    const cnt  = myZzims.length;
+    const dots = document.getElementById('zzim-dots');
+    dots.innerHTML = '';
+    for (let i=0; i<zzimMax; i++) {
+      const d = document.createElement('div');
+      d.className = 'zzim-dot' + (i<cnt?' filled':'');
+      dots.appendChild(d);
+    }
+    document.getElementById('zzim-count').textContent = cnt + '/' + zzimMax;
+  }
+
+  async function showMatchBanner(myZzimList, pts) {
+    const container = document.getElementById('match-banner-container');
+    if (!container || !myPtId) return;
+    try {
+      const settings = await getSettings();
+      const mb = settings?.matchBanner;
+      if (!mb || mb.enabled === false) { container.innerHTML = ''; return; }
+
+      const mutualMatches = [];
+      for (const tid of myZzimList) {
+        const theirZzims = await getMyZzims(tid, eventId);
+        if (theirZzims.includes(myPtId)) {
+          const t = pts.find(p => p.id === tid);
+          if (t) mutualMatches.push(t);
+        }
+      }
+      if (!mutualMatches.length) { container.innerHTML = ''; return; }
+
+      container.innerHTML = mutualMatches.map(t => {
+        const fNum = myGender === 'f' ? myNum : t.number;
+        const mNum = myGender === 'm' ? myNum : t.number;
+        const pair = (mb.pairFormat || '여자 {f}호님 ♥️ 남자 {m}호님')
+          .replace('{f}', fNum).replace('{m}', mNum);
+        return `<div style="background:#fff0f4;border:0.5px solid #f0c0cc;border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-size:16px;">🎉</span>
+            <span style="font-size:13px;font-weight:500;color:#c8506a;">매칭 알림</span>
+          </div>
+          <div style="text-align:center;font-size:14px;font-weight:500;color:#2a1e24;margin-bottom:6px;">${pair}</div>
+          <div style="text-align:center;font-size:12px;color:#6a4a4a;margin-bottom:10px;line-height:1.6;">${mb.msg || '좋은 만남으로 이어지시길 바라겠습니다.'}</div>
+          <div style="height:0.5px;background:#f0c0cc;margin-bottom:10px;"></div>
+          <div style="font-size:12px;font-weight:500;color:#c8506a;margin-bottom:6px;">${mb.eventTitle || '🎁 커플 인증 이벤트'}</div>
+          <div style="font-size:11px;color:#6a4a4a;line-height:1.7;white-space:pre-line;">${mb.eventDesc || ''}</div>
+          <div style="font-size:10px;color:#9a7a7a;margin-top:8px;text-align:center;">${mb.note || ''}</div>
+        </div>`;
+      }).join('');
+    } catch(e) {}
+  }
+
+  function renderCards() {
+    const list = document.getElementById('cards-list');
+    list.innerHTML = '';
+    if (!allPts.length) {
+      list.innerHTML = '<div class="card" style="text-align:center;padding:28px;color:var(--txt3);">아직 등록된 참여자가 없어요.</div>';
+      return;
+    }
+    const sorted = [...allPts].sort((a,b) => {
+      if (a.number && b.number) return a.number - b.number;
+      if (a.number) return -1;
+      if (b.number) return 1;
+      return 0;
+    });
+    sorted.forEach(p => {
+      const zd  = myZzims.includes(p.id);
+      const div = document.createElement('div');
+      div.className = 'pcard' + (zd?' zzimed':'');
+      div.innerHTML = `
+        <div class="pcard-top">
+          <span class="pcard-num">${p.number ? numLabel(p.gender, p.number) : ''}</span>
+          <button class="heart-btn${zd?' active':''}" onclick="event.stopPropagation();doZzim('${p.id}',this)" aria-label="찜">
+            <svg viewBox="0 0 24 24" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </button>
+        </div>
+        <div class="pcard-nick">${p.nickname}</div>
+        <div class="tag-row">
+          <span class="tag ${p.gender==='f'?'tag-f':'tag-m'}">${p.mbti||'—'}</span>
+          <span class="tag tag-drink">${p.drink||'—'}</span>
+          <span class="tag">${p.rest||'—'}</span>
+          <span class="tag">${p.job||'—'}</span>
+        </div>
+        <div class="pcard-intro">${p.intro||''}</div>`;
+      div.addEventListener('click', () => openModal(p));
+      list.appendChild(div);
+    });
+    renderDots();
+  }
+
+  window.doZzim = async function(pid, btn) {
+    if (myZzims.includes(pid)) {
+      await removeZzim(myId, pid, eventId);
+      myZzims = myZzims.filter(id => id !== pid);
+    } else {
+      if (myZzims.length >= zzimMax) {
+        if (btn) { btn.style.outline='2px solid #e85252'; setTimeout(()=>btn.style.outline='',600); }
+        return;
+      }
+      await addZzim(myId, pid, eventId);
+      myZzims = [...myZzims, pid];
+    }
+    renderCards();
+    if (modalId === pid) updateModalBtn();
+  };
+
+  function openModal(p) {
+    modalId = p.id;
+    document.getElementById('m-num').textContent   = p.number ? numLabel(p.gender, p.number) : '';
+    document.getElementById('m-nick').textContent  = p.nickname;
+    document.getElementById('m-intro').textContent = p.intro ? '"' + p.intro + '"' : '';
+    // 고정 필드
+    ['mbti','job','drink','drinking','rest'].forEach(k => {
+      const el = document.getElementById('m-'+k);
+      if (el) el.textContent = p[k] || '—';
+    });
+    // 동적 질문 - 설정 개수만큼 자동 생성
+    const dynEl = document.getElementById('m-dynamic-questions');
+    if (dynEl) {
+      dynEl.innerHTML = '';
+      const baseFields = ['food','music','country','hobby','routine','media','ideal','sense','activity','habit'];
+      window._qLabels.forEach((label, i) => {
+        const key = i < baseFields.length ? baseFields[i] : 'extra' + (i - baseFields.length + 1);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-direction:column;padding:9px 0;border-bottom:0.5px solid var(--border);gap:4px;';
+        row.innerHTML = `<span style="color:var(--txt3);font-size:11px;">${label}</span><span style="color:var(--txt);font-size:13px;word-break:keep-all;">${p[key] || '—'}</span>`;
+        dynEl.appendChild(row);
+      });
+    }
+    updateModalBtn();
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function updateModalBtn() {
+    const on   = myZzims.includes(modalId);
+    const full = myZzims.length >= zzimMax && !on;
+    const btn  = document.getElementById('zzim-modal-btn');
+    btn.className = 'btn mt-12 ' + (on?'btn-pink':'btn-ghost');
+    document.getElementById('zzim-modal-txt').textContent = on?'찜 취소':full?'찜 완료 (변경 불가)':'찜하기';
+  }
+
+  window.toggleZzimModal = function() { if (modalId) doZzim(modalId, null); };
+  window.closeModal = function() { document.getElementById('modal').classList.remove('open'); modalId=null; };
+  document.getElementById('modal').addEventListener('click', e=>{
+    if (e.target===document.getElementById('modal')) closeModal();
+  });
+
+  init();
+</script>
+</body>
+</html>

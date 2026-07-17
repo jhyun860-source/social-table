@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>사전 프로필 · 소셜 테이블</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="../index.html" class="back-btn"><i class="ti ti-arrow-left"></i></a>
+    <span class="page-header-title">사전 프로필</span><span></span>
+  </div>
+  <div class="container page-content">
+    <div class="hint"><i class="ti ti-info-circle"></i>실명·연락처는 관리자만 열람해요. 카드에는 닉네임만 표시돼요.</div>
+    <div class="label" style="margin-top:0;">닉네임 *</div><input class="form-input" id="nickname" placeholder="예: 밤산책러" maxlength="12"/>
+    <div class="label">성별 *</div>
+    <div class="chip-group">
+      <button class="chip" data-group="gender" data-value="f" onclick="pick(this)">여자</button>
+      <button class="chip" data-group="gender" data-value="m" onclick="pick(this)">남자</button>
+    </div>
+    <div class="label">실명 *</div><input class="form-input" id="real-name" placeholder="홍길동"/>
+    <div class="label">핸드폰 번호 *</div>
+    <input class="form-input" id="phone" placeholder="010-0000-0000" type="tel"
+      oninput="formatPhone(this)" maxlength="13"/>
+    <div style="font-size:11px;color:var(--txt3);margin-top:-4px;margin-bottom:8px;display:flex;align-items:center;gap:4px;">
+      <i class="ti ti-shield-lock" style="font-size:11px;"></i>매칭 시 관리자만 확인해요. 외부 공개되지 않아요.
+    </div>
+    <div class="divider"></div>
+    <div class="label">MBTI</div>
+    <div class="chip-group">
+      <button class="chip" data-group="mbti" onclick="pick(this)">ENFP</button><button class="chip" data-group="mbti" onclick="pick(this)">ENFJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">INFP</button><button class="chip" data-group="mbti" onclick="pick(this)">INFJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">ENTP</button><button class="chip" data-group="mbti" onclick="pick(this)">ENTJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">INTP</button><button class="chip" data-group="mbti" onclick="pick(this)">INTJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">ESFP</button><button class="chip" data-group="mbti" onclick="pick(this)">ESFJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">ISFP</button><button class="chip" data-group="mbti" onclick="pick(this)">ISFJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">ESTP</button><button class="chip" data-group="mbti" onclick="pick(this)">ESTJ</button>
+      <button class="chip" data-group="mbti" onclick="pick(this)">ISTP</button><button class="chip" data-group="mbti" onclick="pick(this)">ISTJ</button>
+    </div>
+    <div class="label">직업군</div>
+    <div class="chip-group">
+      <button class="chip" data-group="job" onclick="pick(this)">직장인</button>
+      <button class="chip" data-group="job" onclick="pick(this)">사업/자영업</button>
+      <button class="chip" data-group="job" onclick="pick(this)">프리랜서</button>
+      <button class="chip" data-group="job" onclick="pick(this)">디자인/예술</button>
+      <button class="chip" data-group="job" onclick="pick(this)">IT/개발</button>
+      <button class="chip" data-group="job" onclick="pick(this)">전문직</button>
+      <button class="chip" data-group="job" onclick="pick(this)">기타</button>
+    </div>
+    <div class="label">좋아하는 술 <span style="font-size:11px;color:var(--txt3);">(중복선택 가능)</span></div>
+    <div class="chip-group">
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">위스키</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">하이볼</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">칵테일</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">와인</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">맥주</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">소주</button>
+      <button class="chip" data-group="drink" onclick="pickMulti(this,'drink')">술 잘 못 마셔요</button>
+    </div>
+    <div class="label">주량</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">
+      <div class="chip" data-group="drinking" data-value="전혀 안 함" onclick="pick(this)">전혀 안 함</div>
+      <div class="chip" data-group="drinking" data-value="소주 반병" onclick="pick(this)">소주 반병</div>
+      <div class="chip" data-group="drinking" data-value="소주 1병" onclick="pick(this)">소주 1병</div>
+      <div class="chip" data-group="drinking" data-value="소주 2병 이상" onclick="pick(this)">소주 2병 이상</div>
+    </div>
+    <div class="label">쉬는 날 스타일 <span style="font-size:11px;color:var(--txt3);">(중복선택 가능)</span></div>
+    <div class="chip-group">
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">카페</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">운동</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">여행</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">드라이브</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">영화</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">집에서 쉬기</button>
+      <button class="chip" data-group="rest" onclick="pickMulti(this,'rest')">맛집 탐방</button>
+    </div>
+    <div class="divider"></div>
+    <div class="label">한줄 소개</div><input class="form-input" id="intro" placeholder="예: 조용한 BAR 분위기 좋아해요 :)" maxlength="40"/>
+    <div class="label">캐릭터 탐방</div>
+    <div id="dynamic-questions"></div>
+    <div class="error-msg" id="err">필수 항목을 모두 입력해 주세요.</div>
+    <button class="btn btn-primary mt-16" id="submit-btn" onclick="submitForm()" style="margin-bottom:40px;"><i class="ti ti-check"></i>작성 완료</button>
+  </div>
+</div>
+<script type="module">
+  import { addParticipant, getEvents, getSettings } from '../js/data.js';
+
+  const sel = {};
+
+  // 질문 동적 로드
+  const defaultQuestions = [
+    '좋아하는 음식 (구체적으로)',
+    '좋아하는 음악 스타일',
+    '나랑 친해지려면 공략해야 하는 포인트',
+    '내가 좋아하는 사람들의 공통점',
+    '연락 스타일은? (자주 짧게 / 가끔 길게)',
+    '여행 가면 계획형 vs 흘러가는 형',
+    '내가 은근 중요하게 보는 센스',
+    '사람 볼 때 첫 번째로 들어오는 것',
+    '같이 하면 친해지는 활동 하나 추천한다면?',
+    '친구들이 인정하는 내 웃긴 습관',
+  ];
+
+  (async () => {
+    let qs = defaultQuestions;
+    try {
+      const settings = await getSettings();
+      if (settings?.questions?.length) qs = settings.questions;
+    } catch(e) { console.log('settings load failed, using default'); }
+    const qDiv = document.getElementById('dynamic-questions');
+    if (qDiv) {
+      qDiv.innerHTML = qs.map((q, i) =>
+        `<input class="form-input" id="dq-${i}" placeholder="${q}"/>`
+      ).join('');
+    }
+  })();
+
+  // 전화번호 자동 하이픈
+  window.formatPhone = function(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length <= 3) el.value = v;
+    else if (v.length <= 7) el.value = v.slice(0,3) + '-' + v.slice(3);
+    else el.value = v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7,11);
+  };
+
+  window.pick = function(el) {
+    const g = el.dataset.group;
+    document.querySelectorAll(`[data-group="${g}"]`).forEach(c=>c.classList.remove('selected'));
+    el.classList.add('selected');
+    sel[g] = el.dataset.value || el.textContent.trim();
+  };
+
+  window.pickMulti = function(el, g) {
+    el.classList.toggle('selected');
+    const selected = [...document.querySelectorAll(`[data-group="${g}"].selected`)]
+      .map(c => c.dataset.value || c.textContent.trim());
+    sel[g] = selected.join(', ');
+  };
+
+  window.submitForm = async function() {
+    const nick  = document.getElementById('nickname').value.trim();
+    const name  = document.getElementById('real-name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const err   = document.getElementById('err');
+    const btn   = document.getElementById('submit-btn');
+    if (!nick || !name || !phone || !sel.gender) { err.classList.add('show'); return; }
+    err.classList.remove('show');
+    btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>저장 중...';
+    btn.disabled = true;
+
+    // 현재 활성 모임 찾기
+    const events  = await getEvents();
+    const eventId = sessionStorage.getItem('st_event')
+                 || events.find(e=>e.status==='active')?.id
+                 || events[0]?.id;
+
+    const qEls = document.querySelectorAll('#dynamic-questions input');
+    const baseFields = ['food','music','country','hobby','routine','media','ideal','sense','activity','habit'];
+    const extraData = {};
+    qEls.forEach((el, i) => {
+      const key = i < baseFields.length ? baseFields[i] : 'extra' + (i - baseFields.length + 1);
+      extraData[key] = el.value.trim();
+    });
+
+    const pid = await addParticipant({
+      eventId, nickname:nick, name, phone,
+      gender: sel.gender, number: null,
+      mbti: sel.mbti||'', job: sel.job||'', drink: sel.drink||'', drinking: sel.drinking||'', rest: sel.rest||'',
+      intro: document.getElementById('intro').value.trim(),
+      ...extraData,
+    });
+    sessionStorage.setItem('st_my_id', pid);
+    sessionStorage.setItem('st_gender', sel.gender);
+    location.href = 'done.html';
+  };
+</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>입장 · 소셜 테이블</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page" style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
+  <div class="container" style="width:100%;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--green-lt);border:1px solid var(--green-bd);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+        <i class="ti ti-qrcode" style="font-size:20px;color:var(--green);"></i>
+      </div>
+      <div style="font-size:18px;font-weight:500;color:var(--txt);margin-bottom:4px;">소셜 테이블</div>
+      <div style="font-size:12px;color:var(--txt3);" id="event-info">모임에 오신 걸 환영해요!</div>
+    </div>
+    <div style="font-size:14px;font-weight:500;color:var(--txt);text-align:center;margin-bottom:16px;">나는 어느 쪽인가요?</div>
+    <div class="gender-grid">
+      <a id="link-f" href="#" class="gender-card f" style="text-decoration:none;display:block;">
+        <i class="ti ti-heart" style="font-size:28px;color:var(--pink);display:block;margin-bottom:10px;"></i>
+        <div style="font-size:15px;font-weight:500;color:#c04868;margin-bottom:3px;">여자예요</div>
+        <div style="font-size:11px;color:#e8a0b4;">남자 카드를 봐요</div>
+      </a>
+      <a id="link-m" href="#" class="gender-card m" style="text-decoration:none;display:block;">
+        <i class="ti ti-heart" style="font-size:28px;color:var(--blue);display:block;margin-bottom:10px;"></i>
+        <div style="font-size:15px;font-weight:500;color:var(--blue);margin-bottom:3px;">남자예요</div>
+        <div style="font-size:11px;color:#8aa8e0;">여자 카드를 봐요</div>
+      </a>
+    </div>
+    <div style="font-size:11px;color:var(--txt3);text-align:center;margin-top:10px;">찜 결과는 관리자만 확인할 수 있어요</div>
+  </div>
+</div>
+<script type="module">
+  import { getEvents, getEvent } from '../js/data.js';
+
+  const params  = new URLSearchParams(location.search);
+  const evParam = params.get('event');
+
+  async function init() {
+    let evId = evParam || sessionStorage.getItem('st_event');
+    if (!evId) {
+      const events = await getEvents();
+      const active = events.find(e => e.status === 'active');
+      evId = active?.id || '';
+    }
+    if (evId) {
+      sessionStorage.setItem('st_event', evId);
+      const ev = await getEvent(evId);
+      if (ev) document.getElementById('event-info').textContent = ev.name + ' · ' + ev.venue;
+    }
+    const base = 'cards.html?event=' + (evId||'');
+    document.getElementById('link-f').href = base + '&gender=f';
+    document.getElementById('link-m').href = base + '&gender=m';
+  }
+
+  init();
+</script>
+</body>
+</html>

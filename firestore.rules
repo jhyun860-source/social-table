@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // 모임 정보 - 누구나 읽기 (참여자 카드 접근용)
+    match /events/{eventId} {
+      allow read:  if true;
+      allow write: if isLoggedIn();
+    }
+
+    // 참여자 정보 - 읽기 공개 (카드 열람), 생성 공개 (프로필 등록), 수정/삭제는 관리자만
+    match /participants/{participantId} {
+      allow read:   if true;
+      allow create: if true;
+      allow update: if isLoggedIn();
+      allow delete: if isLoggedIn();
+    }
+
+    // 찜 - 읽기/생성/삭제 공개 (참여자 찜 기능), 단 실제 매칭 결과는 관리자만
+    match /zzims/{zzimId} {
+      allow read:   if true;
+      allow create: if true;
+      allow delete: if true;
+    }
+
+    // 연락처 전달 기록 - 관리자만
+    match /notified/{docId} {
+      allow read, write: if isLoggedIn();
+    }
+
+    // 메뉴 - 누구나 읽기, 수정은 관리자만
+    match /menus/{menuId} {
+      allow read:  if true;
+      allow write: if isLoggedIn();
+    }
+
+    // 설정 - 읽기는 공개 (참여자 질문지 로드), 쓰기는 관리자만
+    match /settings/{docId} {
+      allow read:  if true;
+      allow write: if isLoggedIn();
+    }
+  }
+}

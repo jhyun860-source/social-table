@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>번호 지정 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="dashboard.html" class="back-btn"><i class="ti ti-arrow-left"></i> 대시보드</a>
+    <span class="page-header-title">번호 지정</span>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">로그아웃</button>
+  </div>
+  <div class="container page-content">
+    <div class="label" style="margin-top:0;">모임 선택</div>
+    <select class="form-input" id="ev-select" onchange="switchEv(this.value)" style="margin-bottom:14px;"></select>
+    <div class="hint"><i class="ti ti-info-circle"></i>참여자 도착 순서대로 번호를 지정해요.</div>
+    <div class="adm-tabs">
+      <button class="adm-tab active" onclick="switchTab(this,'tab-f')">여자</button>
+      <button class="adm-tab" onclick="switchTab(this,'tab-m')">남자</button>
+    </div>
+    <div id="tab-f"><div style="overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);"><table class="data-table"><thead><tr><th>참여자</th><th>번호</th><th>현재</th><th>관리</th></tr></thead><tbody id="tbody-f"></tbody></table></div></div>
+    <div id="tab-m" class="hidden"><div style="overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);"><table class="data-table"><thead><tr><th>참여자</th><th>번호</th><th>현재</th><th>관리</th></tr></thead><tbody id="tbody-m"></tbody></table></div></div>
+    <button class="btn btn-primary mt-16" onclick="save()" style="margin-bottom:40px;"><i class="ti ti-check"></i>저장</button>
+  </div>
+</div>
+
+<!-- 참여자 상세 프로필 모달 -->
+<div class="modal-overlay" id="profile-modal" onclick="closeProfile(event)">
+  <div class="modal-sheet" style="position:relative;max-height:85vh;overflow-y:auto;">
+    <div class="modal-handle"></div>
+    <button onclick="document.getElementById('profile-modal').classList.remove('open')" style="position:absolute;top:14px;right:18px;background:none;border:none;cursor:pointer;color:var(--txt3);font-size:18px;"><i class="ti ti-x"></i></button>
+    <div style="font-size:10px;color:var(--txt3);margin-bottom:2px;" id="pm-num"></div>
+    <div style="font-size:18px;font-weight:500;color:var(--txt);margin-bottom:4px;" id="pm-nick"></div>
+    <div style="font-size:12px;color:var(--txt3);margin-bottom:12px;" id="pm-info"></div>
+    <div class="intro-box" id="pm-intro" style="margin-bottom:12px;"></div>
+    <div class="detail-row"><span class="detail-label">MBTI</span><span class="detail-value" id="pm-mbti"></span></div>
+    <div class="detail-row"><span class="detail-label">직업</span><span class="detail-value" id="pm-job"></span></div>
+    <div class="detail-row"><span class="detail-label">좋아하는 술</span><span class="detail-value" id="pm-drink"></span></div>
+    <div class="detail-row"><span class="detail-label">주량</span><span class="detail-value" id="pm-drinking"></span></div>
+    <div class="detail-row"><span class="detail-label">쉬는 날</span><span class="detail-value" id="pm-rest"></span></div>
+    <div id="pm-dynamic-questions"></div>
+
+  </div>
+</div>
+
+<script type="module">
+  import { onAdminAuthChange, adminLogout, getEvents, getEvent, getParticipants, watchParticipants, updateParticipantNumber, numLabel, deleteParticipant, getSettings } from '../js/data.js';
+
+  const params = new URLSearchParams(location.search);
+  let curEv = params.get('event') || '';
+  let curMaxF = 0;
+  let curMaxM = 0;
+  let qLabels = [];
+  let qLabelsReady = false;
+
+  // 설정에서 질문 라벨 로드
+  const loadQLabels = (async () => {
+    try {
+      const settings = await getSettings();
+      if (settings?.questions?.length) {
+        qLabels = settings.questions;
+      } else {
+        qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
+      }
+    } catch(e) {
+      qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
+    }
+    qLabelsReady = true;
+  })();
+  let allPtsF = [], allPtsM = [];
+
+  onAdminAuthChange(async user => {
+    if (!user) { location.href = 'login.html'; return; }
+    const events = await getEvents();
+    const sel = document.getElementById('ev-select');
+    sel.innerHTML = events.map(ev => `<option value="${ev.id}" ${ev.id===curEv?'selected':''}>${ev.name} · ${ev.venue}</option>`).join('');
+    // 활성 모임 우선 선택
+    if (!curEv) {
+      const active = events.find(e => e.status === 'active');
+      curEv = active?.id || (events.length ? events[0].id : '');
+    }
+    if (curEv) { sel.value = curEv; switchEv(curEv); }
+  });
+
+  window.switchEv = async function(id) {
+    curEv = id;
+    const ev = await getEvent(id);
+    curMaxF = ev?.maxF || 0;
+    curMaxM = ev?.maxM || 0;
+    allPtsF = await getParticipants(id, 'f');
+    allPtsM = await getParticipants(id, 'm');
+    renderTable('f', allPtsF);
+    renderTable('m', allPtsM);
+  };
+
+  function renderTable(g, pts) {
+    const tbody = document.getElementById('tbody-'+g);
+    const total = g === 'f'
+      ? Math.max(curMaxF, pts.length)
+      : Math.max(curMaxM, pts.length);
+    tbody.innerHTML = '';
+    if (!pts.length) { tbody.innerHTML=`<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--txt3);">참여자 없음</td></tr>`; return; }
+
+    // 이미 사용된 번호 목록
+    const usedNums = pts.map(p => p.number).filter(n => n != null);
+
+    pts.forEach(p => {
+      const opts = ['<option value="">미지정</option>'];
+      for (let n=1; n<=total; n++) {
+        const isUsed = usedNums.includes(n) && p.number !== n;
+        const label = `${g==='f'?'여자':'남자'} ${n}번${isUsed?' (사용중)':''}`;
+        opts.push(`<option value="${n}" ${p.number===n?'selected':''} ${isUsed?'disabled style="color:#ccc;"':''}>${label}</option>`);
+      }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td onclick="showProfile('${p.id}')" style="cursor:pointer;"><div class="real-name" style="color:var(--pink);">${p.name}</div><div class="real-phone">${fmtPhone(p.phone)}</div><div style="font-size:10px;color:var(--txt3);">${p.nickname}</div></td>
+        <td><select class="num-select" data-pid="${p.id}" data-g="${g}" onchange="onChange(this)">${opts.join('')}</select></td>
+        <td><span class="badge ${g==='f'?'badge-f':'badge-m'}" id="badge-${p.id}">${numLabel(g, p.number)}</span></td>
+        <td><button onclick="delPt('${p.id}', '${p.name}')" style="background:none;border:none;color:#c04040;cursor:pointer;padding:4px;"><i class="ti ti-user-minus"></i></button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  window.onChange = function(sel) {
+    const g = sel.dataset.g;
+    const pts = g === 'f' ? allPtsF : allPtsM;
+    const p = pts.find(x => x.id === sel.dataset.pid);
+    if (!p) return;
+    const newNum = sel.value ? parseInt(sel.value) : null;
+
+    // 중복 체크 - 이미 같은 번호 쓰는 사람 있으면 취소
+    const conflict = pts.find(x => x.id !== p.id && x.number === newNum);
+    if (conflict && newNum !== null) {
+      alert(`${numLabel(g, newNum)} 은 이미 ${conflict.name}님에게 지정됐어요!`);
+      sel.value = p.number || '';
+      return;
+    }
+
+    p.number = newNum;
+    const badge = document.getElementById('badge-'+p.id);
+    if (badge) { badge.textContent = numLabel(g, p.number); badge.className = 'badge ' + (p.number ? (g==='f'?'badge-f':'badge-m') : 'badge-dim'); }
+
+    // 다른 select도 새로고침 (사용중 표시 업데이트)
+    renderTable(g, pts);
+  };
+
+  window.save = async function() {
+    // 저장 전 중복 번호 체크
+    for (const [g, pts] of [['f', allPtsF], ['m', allPtsM]]) {
+      const nums = pts.map(p => p.number).filter(n => n != null);
+      const dupes = nums.filter((n, i) => nums.indexOf(n) !== i);
+      if (dupes.length) {
+        const label = g === 'f' ? '여자' : '남자';
+        alert(`중복된 번호가 있어요: ${label} ${[...new Set(dupes)].join(', ')}번\n저장 전에 수정해주세요!`);
+        return;
+      }
+    }
+    const all = [...allPtsF, ...allPtsM];
+    await Promise.all(all.map(p => updateParticipantNumber(p.id, p.number)));
+    location.href = 'dashboard.html';
+  };
+
+  window.switchTab = function(btn, id) {
+    document.querySelectorAll('.adm-tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+    ['tab-f','tab-m'].forEach(tid => document.getElementById(tid).classList.toggle('hidden', tid!==id));
+  };
+
+  // 참여자 프로필 보기
+  window.showProfile = async function(pid) {
+    await loadQLabels;
+    const all = [...allPtsF, ...allPtsM];
+    const p = all.find(x => x.id === pid);
+    if (!p) return;
+    document.getElementById('pm-num').textContent   = p.number ? numLabel(p.gender, p.number) : '번호 미지정';
+    document.getElementById('pm-nick').textContent  = p.nickname;
+    document.getElementById('pm-info').textContent  = `${p.name} · ${fmtPhone(p.phone)}`;
+    document.getElementById('pm-intro').textContent = p.intro ? '"' + p.intro + '"' : '';
+    ['mbti','job','drink','drinking','rest'].forEach(k => {
+      const el = document.getElementById('pm-'+k);
+      if (el) el.textContent = p[k] || '—';
+    });
+    // 동적 질문 - 설정된 질문 수만큼 자동 생성
+    const dynEl = document.getElementById('pm-dynamic-questions');
+    if (dynEl) {
+      dynEl.innerHTML = '';
+      const baseFields = ['food','music','country','hobby','routine','media','ideal','sense','activity','habit'];
+      qLabels.forEach((label, i) => {
+        const key = i < baseFields.length ? baseFields[i] : 'extra' + (i - baseFields.length + 1);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-direction:column;padding:9px 0;border-bottom:0.5px solid var(--border);gap:4px;';
+        row.innerHTML = `<span style="color:var(--txt3);font-size:11px;">${label}</span><span style="color:var(--txt);font-size:13px;word-break:keep-all;">${p[key] || '—'}</span>`;
+        dynEl.appendChild(row);
+      });
+    }
+    document.getElementById('profile-modal').classList.add('open');
+  };
+
+  window.closeProfile = function(e) {
+    if (e.target === document.getElementById('profile-modal'))
+      document.getElementById('profile-modal').classList.remove('open');
+  };
+
+  function fmtPhone(p) {
+    if (!p) return '—';
+    const v = p.replace(/\D/g,'');
+    if (v.length === 11) return v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7);
+    if (v.length === 10) return v.slice(0,3)+'-'+v.slice(3,6)+'-'+v.slice(6);
+    return p;
+  }
+
+  window.doLogout = async function() { await adminLogout(); location.href='login.html'; };
+
+  window.delPt = async function(id, name) {
+    if (!confirm(`"${name}" 참여자를 삭제할까요?\n등록한 프로필 데이터가 모두 사라집니다.`)) return;
+    try {
+      await deleteParticipant(id);
+      alert('삭제되었습니다.');
+      switchEv(curEv); // 목록 새로고침
+    } catch(e) {
+      alert('삭제 실패: ' + e.message);
+    }
+  };
+</script>
+</body>
+</html>

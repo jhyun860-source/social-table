@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>대시보드 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <span style="font-size:15px;font-weight:500;color:var(--txt);display:flex;align-items:center;gap:6px;">
+      <i class="ti ti-shield-check" style="font-size:14px;color:var(--txt3);"></i>관리자
+      <span style="font-size:11px;color:var(--txt3);" id="admin-email"></span>
+    </span>
+    <div style="display:flex;gap:6px;">
+      <div style="display:flex;gap:6px;flex-wrap:nowrap;align-items:center;">
+        <a href="new-event.html" class="btn btn-primary btn-sm" style="text-decoration:none;white-space:nowrap;"><i class="ti ti-plus"></i>새 모임</a>
+        <a href="../index.html" class="btn btn-ghost btn-sm" style="text-decoration:none;padding:7px 10px;" title="메인"><i class="ti ti-home"></i></a>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()" style="padding:7px 10px;" title="로그아웃"><i class="ti ti-logout"></i></button>
+      </div>
+    </div>
+  </div>
+  <div class="container page-content">
+    <!-- 수정 모달 -->
+    <div id="edit-modal" class="modal-overlay">
+      <div class="modal-content">
+        <div class="section-title"><i class="ti ti-edit"></i>모임 정보 수정</div>
+        <div class="label">모임 이름</div>
+        <input type="text" id="edit-name" class="form-input" placeholder="예: 5월 22일 소셜테이블">
+        <div class="label">일시</div>
+        <input type="text" id="edit-time" class="form-input" placeholder="예: 5월 22일(금) 19:30">
+        <div class="label">장소 (매장명)</div>
+        <input type="text" id="edit-venue" class="form-input" placeholder="예: 강남 소셜라운지">
+        <div class="label">최대 찜 개수</div>
+        <input type="number" id="edit-zzim" class="form-input" placeholder="3">
+        <div class="btn-row" style="margin-top:20px; gap:8px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="closeEditModal()">취소</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="saveEventEdit()">저장하기</button>
+        </div>
+      </div>
+    </div>
+    <div class="stat-grid mb-12" id="stat-grid">
+      <div class="stat-box"><div class="slbl">전체 모임</div><div class="stat-value" id="s-total">…</div></div>
+      <div class="stat-box"><div class="slbl">진행중</div><div class="stat-value" id="s-active" style="color:var(--pink);">…</div></div>
+      <div class="stat-box"><div class="slbl">총 참여자</div><div class="stat-value" id="s-pts">…</div></div>
+      <div class="stat-box"><div class="slbl">상호 매칭</div><div class="stat-value" id="s-match" style="color:var(--green);">…</div></div>
+    </div>
+    <div class="btn-row-3 mb-12">
+      <a href="matching.html" class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 6px;"><i class="ti ti-heart" style="color:var(--pink);"></i>찜 매칭</a>
+      <a href="ranking.html"  class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 6px;"><i class="ti ti-star"></i>투표 랭킹</a>
+      <a href="settings.html" class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 6px;"><i class="ti ti-settings"></i>설정</a>
+    </div>
+
+    <!-- 실시간 동기화 표시 -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+      <div class="section-title" style="margin-bottom:0;flex:1;"><i class="ti ti-calendar"></i>날짜별 모임</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--green);">
+        <span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block;"></span>실시간 동기화
+      </div>
+    </div>
+    <div id="event-list"><div style="text-align:center;padding:24px;color:var(--txt3);font-size:13px;"><i class="ti ti-loader-2" style="animation:spin 1s linear infinite;"></i> 불러오는 중...</div></div>
+  </div>
+</div>
+<script type="module">
+  import { onAdminAuthChange, adminLogout, watchEvents, getParticipants,
+           getMutualMatches, numLabel, db, updateEvent } from '../js/data.js';
+
+  // 인증 확인
+  onAdminAuthChange(user => {
+    if (!user) { location.href = 'login.html'; return; }
+    document.getElementById('admin-email').textContent = user.email;
+    startDashboard();
+  });
+
+  function startDashboard() {
+    // 실시간 모임 감시 — 어떤 관리자가 바꿔도 즉시 반영
+    watchEvents(async events => {
+      // 통계
+      document.getElementById('s-total').textContent  = events.length;
+      document.getElementById('s-active').textContent = events.filter(e=>e.status==='active').length;
+
+      let totalPts = 0, totalMuts = 0;
+      for (const ev of events) {
+        const pts = await getParticipants(ev.id);
+        totalPts += pts.length;
+        const muts = await getMutualMatches(ev.id);
+        totalMuts += muts.length;
+      }
+      document.getElementById('s-pts').textContent   = totalPts;
+      document.getElementById('s-match').textContent = totalMuts + '쌍';
+
+      renderEventList(events);
+    });
+  }
+
+  async function renderEventList(events) {
+    const list = document.getElementById('event-list');
+    if (!events.length) {
+      list.innerHTML = '<div class="card" style="text-align:center;padding:24px;color:var(--txt3);">아직 모임이 없어요.</div>';
+      return;
+    }
+      list.innerHTML = '';
+    window.allEvents = events; // 전역 저장
+    for (const ev of events) {
+      const pts  = await getParticipants(ev.id);
+      const fCnt = pts.filter(p=>p.gender==='f').length;
+      const mCnt = pts.filter(p=>p.gender==='m').length;
+      const muts = await getMutualMatches(ev.id);
+      const isActive = ev.status === 'active';
+
+      const block = document.createElement('div');
+      block.className = 'event-block' + (isActive?' active-event':'');
+      block.innerHTML = `
+        <div class="event-block-hd" onclick="toggleBlock('${ev.id}')">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:nowrap;overflow:hidden;">
+              <span class="status-dot ${isActive?'dot-active':'dot-done'}" style="flex-shrink:0;"></span>
+              <span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">${ev.name}</span>
+              <span class="badge ${isActive?'badge-active':'badge-dim'}" style="white-space:nowrap;flex-shrink:0;">${isActive?'진행중':'완료'}</span>
+            </div>
+            <div style="font-size:10px;color:var(--txt3);">${ev.time} · ${ev.venue} · 찜 ${ev.zzimMax}개</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;flex-wrap:nowrap;">
+            <span class="badge badge-f" style="white-space:nowrap;">여 ${fCnt}</span>
+            <span class="badge badge-m" style="white-space:nowrap;">남 ${mCnt}</span>
+            <i class="ti ti-chevron-down" style="font-size:13px;color:var(--txt3);transition:transform .2s;" id="ch-${ev.id}"></i>
+          </div>
+        </div>
+        <div class="event-block-body" id="body-${ev.id}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px;">
+            <div style="background:var(--bg);padding:9px 11px;"><div style="font-size:10px;color:var(--txt3);margin-bottom:2px;">참여자</div><div style="font-size:16px;font-weight:700;">${pts.length}명</div></div>
+            <div style="background:var(--bg);padding:9px 11px;"><div style="font-size:10px;color:var(--txt3);margin-bottom:2px;">상호 매칭</div><div style="font-size:16px;font-weight:700;color:var(--green);">${muts.length}쌍</div></div>
+          </div>
+          <div class="btn-row-3" style="gap:6px;">
+            <a href="link.html?event=${ev.id}" class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 4px;"><i class="ti ti-link"></i>링크</a>
+            <a href="matching.html?event=${ev.id}" class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 4px;"><i class="ti ti-heart" style="color:var(--pink);"></i>매칭</a>
+            <a href="numbers.html?event=${ev.id}" class="btn btn-ghost" style="text-decoration:none;font-size:11px;padding:9px 4px;"><i class="ti ti-hash"></i>번호</a>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+            <button onclick="openEditEvent('${ev.id}')" class="btn btn-ghost" style="font-size:11px;padding:9px;color:var(--txt2);"><i class="ti ti-edit"></i>정보 수정</button>
+            <button onclick="deleteEvent('${ev.id}', '${ev.name}')" class="btn btn-ghost" style="font-size:11px;padding:9px;color:#c04040;border-color:#f5c0c0;"><i class="ti ti-trash"></i>모임 삭제</button>
+          </div>
+        </div>`;
+      list.appendChild(block);
+    }
+  }
+
+  window.toggleBlock = function(evId) {
+    const body = document.getElementById('body-'+evId);
+    const chev = document.getElementById('ch-'+evId);
+    const open = body.classList.contains('open');
+    body.classList.toggle('open', !open);
+    if (chev) chev.style.transform = open?'':'rotate(180deg)';
+  };
+
+  window.doLogout = async function() {
+    await adminLogout();
+    location.href = 'login.html';
+  };
+
+  window.deleteEvent = async function(evId, evName) {
+    if (!confirm(`"${evName}" 모임을 삭제할까요?\n참여자·찜 데이터는 유지돼요.`)) return;
+    try {
+      const { deleteDoc, doc } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+      await deleteDoc(doc(db, 'events', evId));
+      alert('모임이 삭제됐어요.');
+    } catch(e) {
+      alert('삭제 실패: ' + e.message);
+    }
+  };
+
+  // 모임 정보 수정 모달 로직
+  let editingEvId = null;
+  window.openEditEvent = function(evId) {
+    const ev = window.allEvents.find(e => e.id === evId);
+    if (!ev) return;
+    editingEvId = evId;
+    document.getElementById('edit-name').value = ev.name;
+    document.getElementById('edit-time').value = ev.time;
+    document.getElementById('edit-venue').value = ev.venue;
+    document.getElementById('edit-zzim').value = ev.zzimMax || 3;
+    document.getElementById('edit-modal').classList.add('show');
+  };
+
+  window.closeEditModal = function() {
+    document.getElementById('edit-modal').classList.remove('show');
+  };
+
+  window.saveEventEdit = async function() {
+    if (!editingEvId) return;
+    const data = {
+      name: document.getElementById('edit-name').value.trim(),
+      time: document.getElementById('edit-time').value.trim(),
+      venue: document.getElementById('edit-venue').value.trim(),
+      zzimMax: parseInt(document.getElementById('edit-zzim').value)
+    };
+    try {
+      await updateEvent(editingEvId, data);
+      alert('모임 정보가 수정되었습니다.');
+      closeEditModal();
+    } catch(e) {
+      alert('수정 실패: ' + e.message);
+    }
+  };
+</script>
+<style>
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+    .modal-overlay.show { display: flex; }
+    .modal-content { background: var(--bg); border-radius: 15px; width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    .btn-row { display: flex; }
+  </style>
+</body>
+</html>

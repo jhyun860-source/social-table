@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>링크 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="dashboard.html" class="back-btn"><i class="ti ti-arrow-left"></i> 대시보드</a>
+    <span class="page-header-title" id="page-title">링크</span><span></span>
+  </div>
+  <div class="container page-content">
+    <div id="new-banner" style="display:none;text-align:center;padding:10px 0 18px;">
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--green-lt);border:1px solid var(--green-bd);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;"><i class="ti ti-check" style="font-size:20px;color:var(--green);"></i></div>
+      <div style="font-size:15px;font-weight:500;margin-bottom:3px;" id="banner-title"></div>
+      <div style="font-size:11px;color:var(--txt3);">링크 2종이 자동으로 만들어졌어요</div>
+    </div>
+
+    <div class="link-card">
+      <div style="font-size:13px;font-weight:500;margin-bottom:3px;display:flex;align-items:center;gap:6px;"><i class="ti ti-clipboard-text" style="color:var(--pink);"></i>사전 프로필 링크</div>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:10px;">참여자들에게 카톡·문자로 전송 — 모임 전날 프로필 작성 + 당일 카드 열람 모두 이 링크로!</div>
+      <div class="link-url-box" id="preform-box"></div>
+      <div class="link-btns">
+        <button class="link-btn" onclick="share()"><i class="ti ti-brand-kakao"></i>카톡 공유</button>
+        <button class="link-btn" onclick="sms()"><i class="ti ti-device-mobile"></i>문자</button>
+        <button class="link-btn" id="cp-preform" onclick="copy()"><i class="ti ti-copy"></i>복사</button>
+      </div>
+    </div>
+
+
+
+    <div style="background:var(--pink-lt);border:1px solid var(--pink-bd);border-radius:var(--r-md);padding:12px;margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:500;color:#c04868;margin-bottom:4px;display:flex;align-items:center;gap:5px;"><i class="ti ti-shield-check"></i>날짜 분리 보장</div>
+      <div style="font-size:11px;color:#c04868;line-height:1.65;" id="isolation-msg"></div>
+    </div>
+    <a href="dashboard.html" class="btn btn-ghost" style="text-decoration:none;margin-bottom:40px;"><i class="ti ti-arrow-left"></i>대시보드로</a>
+  </div>
+</div>
+<script type="module">
+  import { onAdminAuthChange, getEvent, copyToClipboard } from '../js/data.js';
+
+  const params = new URLSearchParams(location.search);
+  const evId   = params.get('event');
+  const isNew  = params.get('new') === '1';
+  const BASE   = location.origin + location.pathname.replace('/admin/link.html','');
+  const preformLink = BASE + '/index.html?event=' + evId;
+
+  onAdminAuthChange(async user => {
+    if (!user) { location.href = 'login.html'; return; }
+    const ev = await getEvent(evId);
+    document.getElementById('page-title').textContent = (ev?.name||'') + ' 링크';
+    document.getElementById('preform-box').textContent = preformLink;
+    document.getElementById('isolation-msg').textContent = `이 링크로 들어온 참여자는 ${ev?.name||''} 모임에만 저장돼요. 다른 날짜 데이터와 절대 섞이지 않아요.`;
+    if (isNew) {
+      document.getElementById('new-banner').style.display = 'block';
+      document.getElementById('banner-title').textContent = (ev?.name||'') + ' 모임 생성 완료!';
+    }
+  });
+
+  window.share = function() {
+    const msg = `[소셜 테이블] 모임 안내\n프로필을 미리 작성해 주세요 :)\n\n${preformLink}`;
+    if (navigator.share) navigator.share({ title:'소셜 테이블', text: msg });
+    else { copyToClipboard(msg); alert('링크가 복사됐어요. 카톡에 붙여넣기 해주세요!'); }
+  };
+  window.sms = function() {
+    location.href = 'sms:?body=' + encodeURIComponent(`[소셜 테이블] ${preformLink}`);
+  };
+  window.copy = function() {
+    copyToClipboard(preformLink);
+    const btn = document.getElementById('cp-preform');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="ti ti-check"></i>복사됨';
+    btn.style.cssText = 'background:var(--green-lt);color:var(--green);border-color:var(--green-bd);';
+    setTimeout(() => { btn.innerHTML = orig; btn.style.cssText = ''; }, 1500);
+  };
+</script>
+</body>
+</html>

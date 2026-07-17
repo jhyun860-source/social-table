@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>투표 랭킹 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="dashboard.html" class="back-btn"><i class="ti ti-arrow-left"></i> 대시보드</a>
+    <span class="page-header-title">투표 랭킹</span>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">로그아웃</button>
+  </div>
+  <div class="container page-content">
+    <div class="adm-tabs" id="main-tabs">
+      <button class="adm-tab active" onclick="switchView(this,'ev')">날짜별</button>
+      <button class="adm-tab" onclick="switchView(this,'cum')">누적 전체</button>
+    </div>
+    <div id="view-ev">
+      <div class="label" style="margin-top:0;">모임 선택</div>
+      <select class="form-input" id="ev-select" onchange="renderEv(this.value)" style="margin-bottom:10px;"></select>
+      <div class="adm-tabs" id="ev-gtabs">
+        <button class="adm-tab active" onclick="switchEvG(this,'')">전체</button>
+        <button class="adm-tab" onclick="switchEvG(this,'f')">여자</button>
+        <button class="adm-tab" onclick="switchEvG(this,'m')">남자</button>
+      </div>
+      <div id="ev-list"></div>
+    </div>
+    <div id="view-cum" class="hidden">
+      <div class="adm-tabs" id="cum-gtabs">
+        <button class="adm-tab active" onclick="switchCumG(this,'')">전체</button>
+        <button class="adm-tab" onclick="switchCumG(this,'f')">여자</button>
+        <button class="adm-tab" onclick="switchCumG(this,'m')">남자</button>
+      </div>
+      <div id="cum-list"></div>
+      <button class="btn btn-primary mt-12" id="inv-btn" onclick="sendInv()"><i class="ti ti-send"></i>상위 5명 스페셜 파티 초대</button>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { onAdminAuthChange, adminLogout, getEvents, getParticipants, getReceivedCount, getCrossRanking, numLabel } from '../js/data.js';
+
+  const params = new URLSearchParams(location.search);
+  let curEv = params.get('event') || '';
+  let evGender = '', cumGender = '';
+
+  onAdminAuthChange(async user => {
+    if (!user) { location.href = 'login.html'; return; }
+    const events = await getEvents();
+    const sel = document.getElementById('ev-select');
+    sel.innerHTML = events.map(ev => `<option value="${ev.id}" ${ev.id===curEv?'selected':''}>${ev.name}</option>`).join('');
+    if (!curEv && events.length) curEv = events[0].id;
+    if (curEv) { sel.value = curEv; renderEv(curEv); }
+  });
+
+  window.renderEv = async function(evId) {
+    curEv = evId;
+    const pts = await getParticipants(evId, evGender||null);
+    const ranked = await Promise.all(pts.map(async p => ({ ...p, votes: await getReceivedCount(p.id, evId) })));
+    ranked.sort((a,b) => b.votes - a.votes);
+    renderList('ev-list', ranked, 'votes');
+  };
+
+  async function renderCum() {
+    const ranked = await getCrossRanking(cumGender||null);
+    renderList('cum-list', ranked, 'totalVotes');
+  }
+
+  function renderList(containerId, pts, voteKey) {
+    const el = document.getElementById(containerId);
+    if (!pts.length) { el.innerHTML='<div class="card" style="text-align:center;padding:20px;color:var(--txt3);">참여자가 없어요.</div>'; return; }
+    el.innerHTML = pts.map((p,i) => `
+      <div class="rank-card ${i===0?'top':''}">
+        <div style="font-size:13px;font-weight:700;min-width:22px;color:${i===0?'var(--pink)':'var(--txt3)'};">${i===0?'★':i+1}</div>
+        <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${p.nickname}</div><div style="font-size:11px;color:var(--txt2);">${p.name} · ${numLabel(p.gender,p.number)}</div><div style="font-size:10px;color:var(--txt3);">${p.phone}</div></div>
+        <div style="font-size:15px;font-weight:700;">${p[voteKey]||0}표</div>
+      </div>`).join('');
+  }
+
+  window.switchView = function(btn, id) {
+    document.querySelectorAll('#main-tabs .adm-tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+    document.getElementById('view-ev').classList.toggle('hidden', id!=='ev');
+    document.getElementById('view-cum').classList.toggle('hidden', id!=='cum');
+    if (id==='cum') renderCum();
+  };
+  window.switchEvG = function(btn, g) {
+    evGender = g;
+    document.querySelectorAll('#ev-gtabs .adm-tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+    renderEv(curEv);
+  };
+  window.switchCumG = function(btn, g) {
+    cumGender = g;
+    document.querySelectorAll('#cum-gtabs .adm-tab').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+    renderCum();
+  };
+  window.sendInv = function() {
+    const b = document.getElementById('inv-btn');
+    b.innerHTML='<i class="ti ti-check"></i>발송 완료!'; b.className='btn btn-green'; b.disabled=true;
+  };
+  window.doLogout = async function() { await adminLogout(); location.href='login.html'; };
+</script>
+</body>
+</html>

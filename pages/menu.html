@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>메뉴 · 소셜 테이블</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="../index.html" class="back-btn"><i class="ti ti-arrow-left"></i></a>
+    <span class="page-header-title">오늘의 메뉴</span><span></span>
+  </div>
+  <div class="container page-content">
+    <div class="menu-group-title" id="cat-title-mix"><i class="ti ti-glass"></i>하이볼</div>
+    <div class="menu-group" id="mix-list"></div>
+    <div class="menu-group-title" id="cat-title-cock"><i class="ti ti-bottle"></i>칵테일</div>
+    <div class="menu-group" id="cock-list"></div>
+    <div class="menu-group-title" id="cat-title-nonalc" style="color:#7a62b4;"><i class="ti ti-droplet"></i>논알콜</div>
+    <div class="menu-group" id="nonalc-list"></div>
+    <div class="menu-group-title" id="cat-title-whisky" style="color:#854F0B;"><i class="ti ti-star"></i>프리미엄 위스키 (자유이용)</div>
+    <div class="menu-group" id="whisky-list"></div>
+  </div>
+</div>
+<script type="module">
+  import { getMenuByCategory, getSettings } from '../js/data.js';
+
+  async function renderGroup(cat, containerId) {
+    const items = await getMenuByCategory(cat);
+    const el = document.getElementById(containerId);
+    el.innerHTML = items.map(m => `
+      <div class="menu-item">
+        <span class="menu-item-name">${m.name}${m.isNonAlc?' <span style="font-size:10px;padding:1px 6px;border-radius:10px;background:#f4f0fb;color:#7a62b4;border:1px solid #c8b8e8;">논알콜</span>':''}</span>
+        <span class="menu-item-price">${m.isUnlimited?'<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:var(--pink-lt);color:var(--pink);border:1px solid var(--pink-bd);">무제한</span>':m.price}</span>
+      </div>`).join('');
+  }
+
+  renderGroup('mix',    'mix-list');
+  renderGroup('cock',   'cock-list');
+  renderGroup('nonalc', 'nonalc-list');
+  renderGroup('whisky', 'whisky-list');
+
+  // 카테고리 이름 동적 로드
+  (async () => {
+    try {
+      const settings = await getSettings();
+      if (settings?.catNames) {
+        const cn = settings.catNames;
+        const icons = { mix:'ti-glass', cock:'ti-bottle', nonalc:'ti-droplet', whisky:'ti-star' };
+        const styles = { mix:'', cock:'', nonalc:'color:#7a62b4;', whisky:'color:#854F0B;' };
+        for (const key of ['mix','cock','nonalc','whisky']) {
+          if (cn[key]) {
+            const el = document.getElementById('cat-title-'+key);
+            if (el) el.innerHTML = `<i class="ti ${icons[key]}"></i>${cn[key]}`;
+          }
+        }
+      }
+    } catch(e) {}
+  })();
+</script>
+</body>
+</html>

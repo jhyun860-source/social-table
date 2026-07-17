@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>참여자 접속 · 소셜 테이블</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="../index.html" class="back-btn"><i class="ti ti-arrow-left"></i></a>
+    <span class="page-header-title">본인 확인</span><span></span>
+  </div>
+  <div class="container page-content">
+    <div style="text-align:center;padding:24px 0;">
+      <div style="font-size:18px;font-weight:700;color:var(--txt);">프로필 확인</div>
+      <div style="font-size:13px;color:var(--txt3);margin-top:6px;">사전 등록한 이름과 번호를 입력해주세요.</div>
+    </div>
+
+    <div class="label">실명 *</div>
+    <input class="form-input" id="real-name" placeholder="홍길동"/>
+    
+    <div class="label">핸드폰 번호 *</div>
+    <input class="form-input" id="phone" placeholder="010-0000-0000" type="tel" oninput="formatPhone(this)" maxlength="13"/>
+    
+    <div class="error-msg" id="err">일치하는 정보가 없습니다.</div>
+    
+    <button class="btn btn-primary mt-16" id="login-btn" onclick="checkUser()">
+      <i class="ti ti-check"></i>확인하기
+    </button>
+  </div>
+</div>
+
+<script type="module">
+  import { findParticipant, getEvents } from '../js/data.js';
+
+  window.formatPhone = function(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length <= 3) el.value = v;
+    else if (v.length <= 7) el.value = v.slice(0,3) + '-' + v.slice(3);
+    else el.value = v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7,11);
+  };
+
+  window.checkUser = async function() {
+    const name  = document.getElementById('real-name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const err   = document.getElementById('err');
+    const btn   = document.getElementById('login-btn');
+
+    if (!name || !phone) {
+      err.textContent = '이름과 번호를 모두 입력해주세요.';
+      err.classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>확인 중...';
+
+    try {
+      // 현재 활성 모임 ID 가져오기
+      let eventId = sessionStorage.getItem('st_event');
+      if (!eventId) {
+        const events = await getEvents();
+        const active = events.find(e => e.status === 'active');
+        eventId = active?.id || events[0]?.id;
+      }
+
+      // 하이픈 제거 후 비교 (등록 형식 상관없이)
+      const phoneClean = phone.replace(/\D/g, '');
+      const user = await findParticipant(eventId, name, phoneClean);
+      
+      if (user) {
+        sessionStorage.setItem('st_my_id', user.id);
+        sessionStorage.setItem('st_gender', user.gender);
+        sessionStorage.setItem('st_event', eventId);
+        // 인증 성공 시 카드 페이지로 이동
+        location.href = 'cards.html';
+      } else {
+        err.textContent = '일치하는 정보가 없습니다. 사전 등록을 확인해주세요.';
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="ti ti-check"></i>확인하기';
+      }
+    } catch (e) {
+      console.error(e);
+      err.textContent = '오류가 발생했습니다. 다시 시도해주세요.';
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="ti ti-check"></i>확인하기';
+    }
+  };
+</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</body>
+</html>

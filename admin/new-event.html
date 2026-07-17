@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>새 모임 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="dashboard.html" class="back-btn"><i class="ti ti-arrow-left"></i> 대시보드</a>
+    <span class="page-header-title">새 모임 만들기</span><span></span>
+  </div>
+  <div class="container page-content">
+    <div class="hint"><i class="ti ti-info-circle"></i>날짜마다 고유 링크가 생성돼요. 참여자 데이터가 완전히 분리돼요.</div>
+    <div class="label" style="margin-top:0;">모임 날짜 *</div>
+    <input class="form-input" id="ev-date" type="date"/>
+    <div class="label">시작 시간</div>
+    <input class="form-input" id="ev-time" type="time" value="19:30"/>
+    <div class="label">장소</div>
+    <input class="form-input" id="ev-venue" placeholder="예: Whisky Bar K"/>
+    <div class="label">찜 최대 개수</div>
+    <div class="card flex-between mb-8">
+      <div><div style="font-size:13px;font-weight:500;">찜 허용 개수</div><div style="font-size:11px;color:var(--txt3);margin-top:2px;">인원 규모에 맞게 설정</div></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="zzim-ctrl-btn" id="btn-minus">−</button>
+        <span class="zzim-num" id="znum">3</span>
+        <button class="zzim-ctrl-btn" id="btn-plus">+</button>
+      </div>
+    </div>
+    <div class="btn-row-3 mb-12">
+      <button class="btn btn-ghost" style="font-size:11px;padding:8px;" id="btn-small">소규모 (2)</button>
+      <button class="btn btn-ghost" style="font-size:11px;padding:8px;" id="btn-mid">기본 (3)</button>
+      <button class="btn btn-ghost" style="font-size:11px;padding:8px;" id="btn-large">대규모 (5)</button>
+    </div>
+    <div class="label">여자 / 남자 인원 수</div>
+    <div class="card flex-between mb-8" style="margin-bottom:8px;">
+      <div style="font-size:13px;font-weight:500;">여자</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="zzim-ctrl-btn" id="btn-f-minus">−</button>
+        <span class="zzim-num" id="fnum">9</span>
+        <button class="zzim-ctrl-btn" id="btn-f-plus">+</button>
+      </div>
+    </div>
+    <div class="card flex-between mb-8">
+      <div style="font-size:13px;font-weight:500;">남자</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="zzim-ctrl-btn" id="btn-m-minus">−</button>
+        <span class="zzim-num" id="mnum">9</span>
+        <button class="zzim-ctrl-btn" id="btn-m-plus">+</button>
+      </div>
+    </div>
+    <div class="error-msg" id="err">날짜와 장소를 입력해 주세요.</div>
+    <button class="btn btn-primary" id="create-btn" style="margin-bottom:40px;">
+      <i class="ti ti-sparkles"></i>모임 생성 + 링크 만들기
+    </button>
+  </div>
+</div>
+<script type="module">
+  import { onAdminAuthChange, addEvent, getEvents, updateEvent, genEventId } from '../js/data.js';
+
+  let zzimMax = 3;
+  let maxF = 9;
+  let maxM = 9;
+  document.getElementById('ev-date').value = new Date().toISOString().split('T')[0];
+
+  onAdminAuthChange(user => { if (!user) location.href = 'login.html'; });
+
+  document.getElementById('btn-minus').addEventListener('click', () => {
+    zzimMax = Math.max(1, zzimMax - 1);
+    document.getElementById('znum').textContent = zzimMax;
+  });
+  document.getElementById('btn-plus').addEventListener('click', () => {
+    zzimMax = Math.min(8, zzimMax + 1);
+    document.getElementById('znum').textContent = zzimMax;
+  });
+  document.getElementById('btn-small').addEventListener('click', () => { zzimMax = 2; document.getElementById('znum').textContent = 2; });
+
+  document.getElementById('btn-f-minus').addEventListener('click', () => { maxF = Math.max(1, maxF-1); document.getElementById('fnum').textContent = maxF; });
+  document.getElementById('btn-f-plus').addEventListener('click',  () => { maxF = Math.min(30, maxF+1); document.getElementById('fnum').textContent = maxF; });
+  document.getElementById('btn-m-minus').addEventListener('click', () => { maxM = Math.max(1, maxM-1); document.getElementById('mnum').textContent = maxM; });
+  document.getElementById('btn-m-plus').addEventListener('click',  () => { maxM = Math.min(30, maxM+1); document.getElementById('mnum').textContent = maxM; });
+  document.getElementById('btn-mid').addEventListener('click',   () => { zzimMax = 3; document.getElementById('znum').textContent = 3; });
+  document.getElementById('btn-large').addEventListener('click', () => { zzimMax = 5; document.getElementById('znum').textContent = 5; });
+
+  document.getElementById('create-btn').addEventListener('click', async () => {
+    const date  = document.getElementById('ev-date').value;
+    const time  = document.getElementById('ev-time').value;
+    const venue = document.getElementById('ev-venue').value.trim();
+    const err   = document.getElementById('err');
+    const btn   = document.getElementById('create-btn');
+    if (!date || !venue) { err.classList.add('show'); return; }
+    err.classList.remove('show');
+    btn.innerHTML = '<i class="ti ti-loader-2" style="animation:spin 1s linear infinite"></i>생성 중...';
+    btn.disabled = true;
+
+    // venue를 ID에 포함 (같은 날 여러 지점 운영 가능)
+    const venueSlug = venue.replace(/[^a-zA-Z0-9가-힣]/g, '').slice(0, 10);
+    const id   = genEventId(date) + '_' + venueSlug;
+    const days = ['일','월','화','수','목','금','토'];
+    const dow  = days[new Date(date).getDay()];
+    const parts = date.split('-');
+    const name = `${parseInt(parts[1])}월 ${parseInt(parts[2])}일 (${dow}) · ${venue}`;
+
+    try {
+      await addEvent({ id, name, date, time, venue, zzimMax, maxF, maxM, status: 'active' });
+      location.href = 'link.html?event=' + id + '&new=1';
+    } catch(e) {
+      console.error(e);
+      btn.innerHTML = '<i class="ti ti-sparkles"></i>모임 생성 + 링크 만들기';
+      btn.disabled = false;
+      alert('오류: ' + e.message);
+    }
+  });
+</script>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+</body>
+</html>

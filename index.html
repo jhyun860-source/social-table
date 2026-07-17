@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>소셜 테이블</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="page">
+  <div class="container page-content">
+    <div style="text-align:center;padding:36px 0 24px;">
+      <div style="width:56px;height:56px;border-radius:50%;background:var(--pink-lt);border:1px solid var(--pink-bd);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+        <i class="ti ti-table-heart" style="font-size:24px;color:var(--pink);"></i>
+      </div>
+      <div style="font-size:28px;font-weight:700;color:var(--txt);letter-spacing:-.5px;">소셜 테이블</div>
+      <div style="font-size:13px;color:var(--txt3);margin-top:6px;">프라이빗 BAR 소셜 경험</div>
+    </div>
+
+    <a href="pages/menu.html" class="btn btn-ghost" style="text-decoration:none;margin-bottom:0;">
+      <i class="ti ti-menu-2" style="color:var(--pink);"></i>오늘의 메뉴 보기
+    </a>
+    <div class="divider"></div>
+    <a href="pages/preform.html" class="btn btn-primary" style="text-decoration:none;">
+      <i class="ti ti-clipboard-text"></i>사전 프로필 작성하기
+    </a>
+
+
+
+    <div class="divider"></div>
+
+    <div style="font-size:13px;font-weight:500;color:var(--txt);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
+      <i class="ti ti-door-enter" style="color:var(--green);"></i>이미 프로필 작성하셨나요?
+    </div>
+    <a href="pages/login.html" class="btn btn-ghost" style="text-decoration:none;">
+      <i class="ti ti-door-enter"></i>참여자 카드로 입장하기
+    </a>
+
+    <div style="text-align:center;margin-top:20px;">
+      <a href="admin/login.html" style="font-size:12px;color:var(--txt3);display:inline-flex;align-items:center;gap:4px;">
+        <i class="ti ti-lock" style="font-size:12px;"></i>관리자 입장
+      </a>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { getEvents } from './js/data.js';
+
+  const params  = new URLSearchParams(location.search);
+  const eventId = params.get('event');
+  const gender  = params.get('gender');
+
+  async function init() {
+    let evId = eventId;
+    if (!evId) {
+      try {
+        const events = await getEvents();
+        const active = events.find(e => e.status === 'active');
+        evId = active?.id || '';
+      } catch(e) {}
+    }
+    if (evId) sessionStorage.setItem('st_event', evId);
+
+    // QR로 바로 들어온 경우 등 자동 로그인 처리가 필요하면 여기에 추가 가능
+    if (eventId && gender) {
+      // 하지만 보안을 위해 login.html로 보내는 것이 안전함
+      location.href = 'pages/login.html?event=' + evId + '&gender=' + gender;
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

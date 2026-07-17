@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>찜 매칭 · 관리자</title><link rel="stylesheet" href="../css/style.css"/></head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <a href="dashboard.html" class="back-btn"><i class="ti ti-arrow-left"></i> 대시보드</a>
+    <span class="page-header-title">찜 매칭 현황</span>
+    <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--green);">
+      <span style="width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;display:inline-block;"></span>실시간
+    </div>
+  </div>
+  <div class="container page-content">
+    <div class="label" style="margin-top:0;">모임 선택</div>
+    <select class="form-input" id="ev-select" onchange="switchEvent(this.value)" style="margin-bottom:14px;"></select>
+    <div class="stat-grid mb-12" id="stat-grid"></div>
+    <div class="section-title"><i class="ti ti-heart" style="color:var(--pink);"></i>상호 매칭 <span id="mut-cnt" style="font-size:11px;color:var(--txt3);font-weight:400;">(0쌍)</span></div>
+    <div id="mutual-list" class="mb-16"></div>
+    <div class="section-title"><i class="ti ti-list"></i>전체 찜 현황</div>
+    <div class="hint">초록 칩 = 상호 찜</div>
+    <div style="overflow-x:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);">
+      <table class="data-table"><thead><tr><th>참여자</th><th>찜한 사람</th><th style="text-align:right;width:46px;">받음</th></tr></thead>
+      <tbody id="zzim-tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+<script type="module">
+  import { onAdminAuthChange, getEvents, watchZzims, getParticipants,
+           isNotified, setNotified, numLabel } from '../js/data.js';
+
+  let curEvId = null;
+  let unsubZzim = null;
+  const params = new URLSearchParams(location.search);
+
+  onAdminAuthChange(async user => {
+    if (!user) { location.href = 'login.html'; return; }
+    const events = await getEvents();
+    const sel = document.getElementById('ev-select');
+    sel.innerHTML = events.map(ev =>
+      `<option value="${ev.id}">${ev.name} · ${ev.venue}</option>`
+    ).join('');
+    const active = events.find(e => e.status === 'active');
+    const init = params.get('event') || active?.id || events[0]?.id;
+    if (init) { sel.value = init; switchEvent(init); }
+  });
+
+  window.switchEvent = function(evId) {
+    curEvId = evId;
+    if (unsubZzim) unsubZzim(); // 이전 리스너 해제
+    // 실시간 감시 시작 — 찜 누르면 즉시 반영
+    unsubZzim = watchZzims(evId, async ({ all, mutuals }) => {
+      const pts = await getParticipants(evId);
+      const totalZ = all.length;
+      const fCnt = pts.filter(p=>p.gender==='f').length;
+      const rate = fCnt > 0 ? Math.round(mutuals.length / fCnt * 100) : 0;
+
+      document.getElementById('stat-grid').innerHTML = `
+        <div class="stat-box"><div class="slbl">총 찜</div><div class="stat-value">${totalZ}</div></div>
+        <div class="stat-box"><div class="slbl">상호 매칭</div><div class="stat-value" style="color:var(--green);">${mutuals.length}쌍</div></div>
+        <div class="stat-box"><div class="slbl">매칭률</div><div class="stat-value">${rate}%</div></div>
+        <div class="stat-box"><div class="slbl">전달 완료</div><div class="stat-value" id="sent-c">0</div></div>`;
+
+      document.getElementById('mut-cnt').textContent = `(${mutuals.length}쌍)`;
+
+      // 상호 매칭 카드
+      const ml = document.getElementById('mutual-list');
+      if (!mutuals.length) {
+        ml.innerHTML = '<div class="card" style="text-align:center;padding:18px;color:var(--txt3);">아직 상호 매칭이 없어요.</div>';
+      } else {
+        ml.innerHTML = '';
+        for (const { a, b } of mutuals) {
+          const notified = await isNotified(a.id, b.id, evId);
+          const div = document.createElement('div');
+          div.className = 'match-card mutual';
+          div.innerHTML = `
+            <div class="match-pair">
+              <div class="match-person"><div class="match-num-lbl">${numLabel(a.gender,a.number)}</div><div class="match-nick">${a.nickname}</div><div class="match-real">${a.name}</div><div class="match-phone">${a.phone}</div></div>
+              <div style="font-size:18px;color:var(--green);flex-shrink:0;"><i class="ti ti-arrows-exchange"></i></div>
+              <div class="match-person right"><div class="match-num-lbl">${numLabel(b.gender,b.number)}</div><div class="match-nick">${b.nickname}</div><div class="match-real">${b.name}</div><div class="match-phone">${b.phone}</div></div>
+            </div>
+            <div class="flex-between">
+              <span class="badge badge-g"><i class="ti ti-heart" style="font-size:9px;"></i>상호</span>
+              <button class="btn btn-green btn-sm ${notified?'opacity-70':''}"
+                id="nb-${a.id}-${b.id}" onclick="doNotify('${a.id}','${b.id}')" ${notified?'disabled':''}>
+                ${notified?'전달 완료':'연락처 전달'}
+              </button>
+            </div>`;
+          ml.appendChild(div);
+        }
+      }
+
+      // 전체 찜 현황 테이블
+      const tbody = document.getElementById('zzim-tbody');
+      tbody.innerHTML = '';
+      for (const p of pts) {
+        const myZzIds = all.filter(z=>z.fromId===p.id).map(z=>z.toId);
+        const recvCnt = all.filter(z=>z.toId===p.id).length;
+        const chips = myZzIds.map(tid => {
+          const t = pts.find(x=>x.id===tid);
+          if (!t) return '';
+          const isMut = all.some(z=>z.fromId===tid&&z.toId===p.id);
+          return `<span class="badge ${isMut?'badge-g':'badge-dim'}" style="margin:2px;">${isMut?'♥ ':''}${t.name||t.nickname}</span>`;
+        }).join('');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><div class="real-name">${p.name}</div><div class="real-phone">${p.phone}</div>
+            <span class="badge ${p.gender==='f'?'badge-f':'badge-m'}" style="font-size:9px;margin-top:3px;display:inline-flex;">${numLabel(p.gender,p.number)}</span></td>
+          <td>${chips||'<span style="font-size:11px;color:var(--txt3);">없음</span>'}</td>
+          <td style="text-align:right;font-weight:700;">${recvCnt}</td>`;
+        tbody.appendChild(tr);
+      }
+    });
+  };
+
+  window.doNotify = async function(aId, bId) {
+    await setNotified(aId, bId, curEvId);
+    const btn = document.getElementById(`nb-${aId}-${bId}`);
+    if (btn) { btn.textContent='전달 완료'; btn.disabled=true; btn.style.opacity='.7'; }
+    const sc = document.getElementById('sent-c');
+    if (sc) sc.textContent = parseInt(sc.textContent||'0') + 1;
+  };
+</script>
+<style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
+</body>
+</html>
