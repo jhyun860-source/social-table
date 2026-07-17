@@ -62,6 +62,7 @@
   let modalId = null;
   let allPts  = [];
   let myZzims = [];
+  let myNum   = null;
 
   document.getElementById('gender-badge').textContent = myGender==='f' ? '여자 입장' : '남자 입장';
   document.getElementById('gender-badge').className   = 'badge ' + (myGender==='f'?'badge-f':'badge-m');
@@ -99,11 +100,13 @@
       const rawOppPts = await getParticipants(eventId, oppGender);
       allPts  = rawOppPts.filter(p => p.number);
       myZzims = await getMyZzims(myId, eventId);
-      await showMatchBanner(myZzims, allPts);
 
       // 실시간 감시를 위해 초기 로드 시에도 전체 참여자 목록 필요
       const pts = await getParticipants(eventId);
       const me  = pts.find(p => p.id === myId);
+      myNum = me?.number || null;
+
+      await showMatchBanner(myZzims, allPts);
 
       // 1. 본인이 번호 지정을 받았는지 확인
       // 2. 상대방 성별 중 번호 지정된 사람이 있는지 확인
@@ -170,7 +173,7 @@
 
   async function showMatchBanner(myZzimList, pts) {
     const container = document.getElementById('match-banner-container');
-    if (!container || !myPtId) return;
+    if (!container || !myId) return;
     try {
       const settings = await getSettings();
       const mb = settings?.matchBanner;
@@ -179,7 +182,7 @@
       const mutualMatches = [];
       for (const tid of myZzimList) {
         const theirZzims = await getMyZzims(tid, eventId);
-        if (theirZzims.includes(myPtId)) {
+        if (theirZzims.includes(myId)) {
           const t = pts.find(p => p.id === tid);
           if (t) mutualMatches.push(t);
         }
