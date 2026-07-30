@@ -72,6 +72,8 @@
   function startDashboard() {
     // 실시간 모임 감시 — 어떤 관리자가 바꿔도 즉시 반영
     watchEvents(async events => {
+      // 즉시 리스트 초기화 (중복 방지)
+      document.getElementById('event-list').innerHTML = '';
       // 통계
       document.getElementById('s-total').textContent  = events.length;
       document.getElementById('s-active').textContent = events.filter(e=>e.status==='active').length;
