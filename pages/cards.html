@@ -94,6 +94,12 @@
 
       ev      = await getEvent(eventId);
       zzimMax = ev?.zzimMax || 3;
+      if (ev?.status === 'ended') {
+        document.getElementById('zzim-modal-btn').disabled = true;
+        document.getElementById('zzim-modal-btn').style.opacity = '0.4';
+        document.getElementById('zzim-modal-txt').textContent = '모임이 종료됐어요';
+        document.querySelector('.hint').textContent = '이 모임은 종료됐어요. 찜 수정이 불가해요.';
+      }
       document.getElementById('hint-max').textContent = zzimMax;
 
       // 상대방(이성) 중 번호 지정된 사람만 불러오기

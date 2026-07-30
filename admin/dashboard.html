@@ -135,6 +135,7 @@
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
             <button onclick="openEditEvent('${ev.id}')" class="btn btn-ghost" style="font-size:11px;padding:9px;color:var(--txt2);"><i class="ti ti-edit"></i>정보 수정</button>
+            ${isActive ? `<button onclick="endEvent('${ev.id}', '${ev.name}')" class="btn btn-ghost" style="font-size:11px;padding:9px;color:#7a5a00;border-color:#f0d080;"><i class="ti ti-player-stop"></i>모임 종료</button>` : ''}
             <button onclick="deleteEvent('${ev.id}', '${ev.name}')" class="btn btn-ghost" style="font-size:11px;padding:9px;color:#c04040;border-color:#f5c0c0;"><i class="ti ti-trash"></i>모임 삭제</button>
           </div>
         </div>`;
@@ -153,6 +154,11 @@
   window.doLogout = async function() {
     await adminLogout();
     location.href = 'login.html';
+  };
+
+  window.endEvent = async function(evId, evName) {
+    if (!confirm(`"${evName}" 모임을 종료할까요?\n종료 후 참여자들은 찜을 수정할 수 없어요.`)) return;
+    await updateEvent(evId, { status: 'ended' });
   };
 
   window.deleteEvent = async function(evId, evName) {
