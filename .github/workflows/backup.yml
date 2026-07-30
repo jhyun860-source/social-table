@@ -1,0 +1,32 @@
+name: Firebase DB Backup
+
+on:
+  schedule:
+    - cron: '0 21 * * *'  # 매일 오전 6시 KST
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Firebase Admin
+        run: npm install firebase-admin
+
+      - name: Run Backup
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node backup.js
+
+      - name: Commit backup
+        run: |
+          git config --global user.email "backup@social-table.com"
+          git config --global user.name "Auto Backup"
+          git add backups/
+          git diff --staged --quiet || git commit -m "DB 자동 백업 $(date '+%Y-%m-%d %H:%M')"
+          git push
