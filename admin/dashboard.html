@@ -96,7 +96,7 @@
       list.innerHTML = '<div class="card" style="text-align:center;padding:24px;color:var(--txt3);">아직 모임이 없어요.</div>';
       return;
     }
-      list.innerHTML = '';
+    list.innerHTML = '';
     window.allEvents = events; // 전역 저장
     for (const ev of events) {
       const pts  = await getParticipants(ev.id);
