@@ -71,7 +71,10 @@
 
   function startDashboard() {
     // 실시간 모임 감시 — 어떤 관리자가 바꿔도 즉시 반영
+    let isRendering = false;
     watchEvents(async events => {
+      if (isRendering) return;
+      isRendering = true;
       // 즉시 리스트 초기화 (중복 방지)
       document.getElementById('event-list').innerHTML = '';
       // 통계
@@ -88,7 +91,8 @@
       document.getElementById('s-pts').textContent   = totalPts;
       document.getElementById('s-match').textContent = totalMuts + '쌍';
 
-      renderEventList(events);
+      await renderEventList(events);
+      isRendering = false;
     });
   }
 
