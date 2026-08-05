@@ -67,8 +67,14 @@
   onAdminAuthChange(user => { if (!user) location.href = 'login.html'; });
 
   (async () => {
-    await ensureDefaultQuestionSet();
-    const qsets = await getQuestionSets();
+    let qsets = [];
+    try {
+      await ensureDefaultQuestionSet();
+      qsets = await getQuestionSets();
+    } catch (e) {
+      console.error('모임종류 로드 실패:', e);
+    }
+    if (!qsets.length) qsets = [{ id: 'general', name: '일반모임' }];
     document.getElementById('ev-qtype').innerHTML = qsets.map(q =>
       `<option value="${q.id}">${q.name}</option>`
     ).join('');

@@ -122,8 +122,16 @@ html<!DOCTYPE html>
       if (cn.whisky) { document.getElementById('cat-whisky').value = cn.whisky; document.getElementById('tab-btn-whisky').textContent = cn.whisky; }
     }
     // 모임 종류별 질문지 불러오기 (없으면 기존 질문을 "일반모임"으로 1회 이전)
-    await ensureDefaultQuestionSet();
-    questionSets = await getQuestionSets();
+    try {
+      await ensureDefaultQuestionSet();
+      questionSets = await getQuestionSets();
+    } catch (e) {
+      console.error('질문지 로드 실패:', e);
+    }
+    if (!questionSets.length) {
+      // 로드 실패 시에도 화면이 완전히 비지 않도록 기본값으로라도 편집 가능하게
+      questionSets = [{ id: 'general', name: '일반모임', questions: settings?.questions || [] }];
+    }
     renderQTypeSelect();
     switchQType(questionSets[0]?.id || 'general');
     // 로드 완료 후 저장 버튼 활성화
