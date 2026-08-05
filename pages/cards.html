@@ -42,7 +42,7 @@
 </div>
 
 <script type="module">
-  import { getEvent, getEvents, getParticipants, watchParticipants, getMyZzims, addZzim, removeZzim, numLabel, getSettings } from '../js/data.js';
+  import { getEvent, getEvents, getParticipants, watchParticipants, getMyZzims, addZzim, removeZzim, numLabel, getSettings, getQuestionSet } from '../js/data.js';
 
   const params   = new URLSearchParams(location.search);
   let eventId    = params.get('event')  || sessionStorage.getItem('st_event');
@@ -72,8 +72,15 @@
   window._qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
   (async () => {
     try {
-      const settings = await getSettings();
-      if (settings?.questions?.length) window._qLabels = settings.questions;
+      const curEv = eventId ? await getEvent(eventId) : null;
+      const qset  = await getQuestionSet(curEv?.questionSetId || 'general');
+      if (qset?.questions?.length) {
+        window._qLabels = qset.questions;
+      } else {
+        // 모임 종류별 질문지가 없는 옛날 모임 대비 - 기존 전역 설정으로 폴백
+        const settings = await getSettings();
+        if (settings?.questions?.length) window._qLabels = settings.questions;
+      }
     } catch(e) {}
   })();
 

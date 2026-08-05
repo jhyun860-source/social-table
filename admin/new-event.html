@@ -10,7 +10,9 @@
   </div>
   <div class="container page-content">
     <div class="hint"><i class="ti ti-info-circle"></i>날짜마다 고유 링크가 생성돼요. 참여자 데이터가 완전히 분리돼요.</div>
-    <div class="label" style="margin-top:0;">모임 날짜 *</div>
+    <div class="label" style="margin-top:0;">모임 종류 *</div>
+    <select class="form-input" id="ev-qtype"></select>
+    <div class="label">모임 날짜 *</div>
     <input class="form-input" id="ev-date" type="date"/>
     <div class="label">시작 시간</div>
     <input class="form-input" id="ev-time" type="time" value="19:30"/>
@@ -54,7 +56,8 @@
   </div>
 </div>
 <script type="module">
-  import { onAdminAuthChange, addEvent, getEvents, updateEvent, genEventId } from '../js/data.js';
+  import { onAdminAuthChange, addEvent, getEvents, updateEvent, genEventId,
+           getQuestionSets, ensureDefaultQuestionSet } from '../js/data.js';
 
   let zzimMax = 3;
   let maxF = 9;
@@ -62,6 +65,14 @@
   document.getElementById('ev-date').value = new Date().toISOString().split('T')[0];
 
   onAdminAuthChange(user => { if (!user) location.href = 'login.html'; });
+
+  (async () => {
+    await ensureDefaultQuestionSet();
+    const qsets = await getQuestionSets();
+    document.getElementById('ev-qtype').innerHTML = qsets.map(q =>
+      `<option value="${q.id}">${q.name}</option>`
+    ).join('');
+  })();
 
   document.getElementById('btn-minus').addEventListener('click', () => {
     zzimMax = Math.max(1, zzimMax - 1);
@@ -84,6 +95,7 @@
     const date  = document.getElementById('ev-date').value;
     const time  = document.getElementById('ev-time').value;
     const venue = document.getElementById('ev-venue').value.trim();
+    const questionSetId = document.getElementById('ev-qtype').value || 'general';
     const err   = document.getElementById('err');
     const btn   = document.getElementById('create-btn');
     if (!date || !venue) { err.classList.add('show'); return; }
@@ -100,7 +112,7 @@
     const name = `${parseInt(parts[1])}월 ${parseInt(parts[2])}일 (${dow}) · ${venue}`;
 
     try {
-      await addEvent({ id, name, date, time, venue, zzimMax, maxF, maxM, status: 'active' });
+      await addEvent({ id, name, date, time, venue, zzimMax, maxF, maxM, questionSetId, status: 'active' });
       location.href = 'link.html?event=' + id + '&new=1';
     } catch(e) {
       console.error(e);

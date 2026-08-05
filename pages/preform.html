@@ -81,7 +81,7 @@
   </div>
 </div>
 <script type="module">
-  import { addParticipant, getEvents, getSettings } from '../js/data.js';
+  import { addParticipant, getEvents, getEvent, getSettings, getQuestionSet } from '../js/data.js';
 
   const sel = {};
 
@@ -102,9 +102,20 @@
   (async () => {
     let qs = defaultQuestions;
     try {
-      const settings = await getSettings();
-      if (settings?.questions?.length) qs = settings.questions;
-    } catch(e) { console.log('settings load failed, using default'); }
+      const events  = await getEvents();
+      const eventId = sessionStorage.getItem('st_event')
+                   || events.find(e=>e.status==='active')?.id
+                   || events[0]?.id;
+      const ev  = eventId ? await getEvent(eventId) : null;
+      const qset = await getQuestionSet(ev?.questionSetId || 'general');
+      if (qset?.questions?.length) {
+        qs = qset.questions;
+      } else {
+        // 모임 종류별 질문지가 없는 옛날 모임 대비 - 기존 전역 설정으로 폴백
+        const settings = await getSettings();
+        if (settings?.questions?.length) qs = settings.questions;
+      }
+    } catch(e) { console.log('questions load failed, using default'); }
     const qDiv = document.getElementById('dynamic-questions');
     if (qDiv) {
       qDiv.innerHTML = qs.map((q, i) =>

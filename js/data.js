@@ -353,6 +353,58 @@ async function saveSettings(data) {
 }
 
 // ════════════════════════════════════════════════════════
+//  질문지 세트 (모임 종류별 사전 프로필 질문)
+// ════════════════════════════════════════════════════════
+
+// 질문지 세트 전체 가져오기
+async function getQuestionSets() {
+  const snap = await getDocs(collection(db, 'questionSets'));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// 질문지 세트 하나 가져오기
+async function getQuestionSet(id) {
+  if (!id) return null;
+  const snap = await getDoc(doc(db, 'questionSets', id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// 질문지 세트 저장 (생성/수정)
+async function saveQuestionSet(id, data) {
+  await setDoc(doc(db, 'questionSets', id), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+// 질문지 세트가 하나도 없으면, 기존 전역 질문(settings.questions)을
+// "일반모임" 질문지로 1회 복사해둠. 기존 settings.questions는 삭제하지 않음.
+async function ensureDefaultQuestionSet() {
+  const existing = await getDocs(collection(db, 'questionSets'));
+  if (!existing.empty) return;
+  const settings = await getSettings();
+  const questions = settings?.questions?.length ? settings.questions : [
+    '이번주에 먹었던 것 중 제일 맛있었던 것',
+    '나의 취미나 요즘 빠져있는 것',
+    '최애 음식과 인생맛집',
+    '인생 여행지나 가보고 싶은 여행지',
+    '친구·가족이 말하는 내 웃긴 습관이나 특징',
+    '내가 선호하는 연락 스타일은? (압축적으로 VS 항상 연결되게)',
+    '외적 이상형에 가장 가까운 연예인',
+    '내가 선호하는 이성은? (테토 VS 에겐)',
+    '내가 생각하기에 나는 어떤 사람? (테토 VS 에겐)',
+    '특별히 싫어하는 이성의 성격이나 특징',
+    '연인과 다퉜을 때 나는 이렇게 한다',
+    '나는 여기에 __________을(를) 찾으러 나왔다.',
+  ];
+  await setDoc(doc(db, 'questionSets', 'general'), {
+    name: '일반모임',
+    questions,
+    createdAt: serverTimestamp(),
+  });
+}
+
+// ════════════════════════════════════════════════════════
 //  랭킹 (Cross-event)
 // ════════════════════════════════════════════════════════
 
@@ -464,6 +516,7 @@ export {
   isNotified, setNotified,
   getMenus, getMenuByCategory, saveMenus,
   getSettings, saveSettings,
+  getQuestionSets, getQuestionSet, saveQuestionSet, ensureDefaultQuestionSet,
   getCrossRanking,
   seedInitialData,
   numLabel, copyToClipboard, sendSMS,

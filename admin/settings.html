@@ -71,7 +71,12 @@ html<!DOCTYPE html>
     </div>
 
     <div class="section-title mt-16"><i class="ti ti-clipboard-text"></i>사전 프로필 질문 편집</div>
-    <div class="hint" style="margin-bottom:10px;"><i class="ti ti-info-circle"></i>질문을 수정하면 참여자 프로필 작성 화면에 바로 반영돼요.</div>
+    <div class="hint" style="margin-bottom:10px;"><i class="ti ti-info-circle"></i>모임 종류마다 다른 질문지를 저장해두고, 새 모임 만들 때 골라 쓸 수 있어요.</div>
+    <div class="label" style="margin-top:0;">모임 종류</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <select class="form-input" id="qtype-select" style="flex:1;margin-bottom:0;" onchange="switchQType(this.value)"></select>
+      <button style="width:44px;flex-shrink:0;border-radius:var(--r-sm);border:1px solid var(--border2);background:none;cursor:pointer;color:var(--txt2);" onclick="addQType()" title="모임 종류 추가"><i class="ti ti-plus"></i></button>
+    </div>
     <div id="questions-list"></div>
     <button style="display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;border-radius:var(--r-sm);border:1px dashed var(--border2);background:none;cursor:pointer;color:var(--txt3);font-size:12px;width:100%;margin-top:4px;margin-bottom:16px;" onclick="addQuestion()"><i class="ti ti-plus"></i>질문 추가</button>
 
@@ -88,23 +93,13 @@ html<!DOCTYPE html>
   </div>
 </div>
 <script type="module">
-  import { onAdminAuthChange, adminLogout, getMenus, saveMenus, getSettings, saveSettings } from '../js/data.js';
+  import { onAdminAuthChange, adminLogout, getMenus, saveMenus, getSettings, saveSettings,
+           getQuestionSets, saveQuestionSet, ensureDefaultQuestionSet } from '../js/data.js';
 
   let allMenus = [];
-  let questions = [
-    '이번주에 먹었던 것 중 제일 맛있었던 것',
-    '나의 취미나 요즘 빠져있는 것',
-    '최애 음식과 인생맛집',
-    '인생 여행지나 가보고 싶은 여행지',
-    '친구·가족이 말하는 내 웃긴 습관이나 특징',
-    '내가 선호하는 연락 스타일은? (압축적으로 VS 항상 연결되게)',
-    '외적 이상형에 가장 가까운 연예인',
-    '내가 선호하는 이성은? (테토 VS 에겐)',
-    '내가 생각하기에 나는 어떤 사람? (테토 VS 에겐)',
-    '특별히 싫어하는 이성의 성격이나 특징',
-    '연인과 다퉜을 때 나는 이렇게 한다',
-    '나는 여기에 __________을(를) 찾으러 나왔다.',
-  ];
+  let questionSets = [];   // [{id, name, questions}, ...]
+  let curQType = null;     // 현재 편집 중인 모임 종류 id
+  let questions = [];      // 현재 선택된 모임 종류의 질문 목록
 
   onAdminAuthChange(user => {
     if (!user) { location.href = 'login.html'; return; }
@@ -119,7 +114,6 @@ html<!DOCTYPE html>
     renderMenuEdit('whisky');
     // 저장된 설정 불러오기
     const settings = await getSettings();
-    if (settings?.questions?.length) questions = settings.questions;
     if (settings?.catNames) {
       const cn = settings.catNames;
       if (cn.mix)    { document.getElementById('cat-mix').value    = cn.mix;    document.getElementById('tab-btn-mix').textContent    = cn.mix; }
@@ -127,7 +121,11 @@ html<!DOCTYPE html>
       if (cn.nonalc) { document.getElementById('cat-nonalc').value = cn.nonalc; document.getElementById('tab-btn-nonalc').textContent = cn.nonalc; }
       if (cn.whisky) { document.getElementById('cat-whisky').value = cn.whisky; document.getElementById('tab-btn-whisky').textContent = cn.whisky; }
     }
-    renderQuestions();
+    // 모임 종류별 질문지 불러오기 (없으면 기존 질문을 "일반모임"으로 1회 이전)
+    await ensureDefaultQuestionSet();
+    questionSets = await getQuestionSets();
+    renderQTypeSelect();
+    switchQType(questionSets[0]?.id || 'general');
     // 로드 완료 후 저장 버튼 활성화
     const saveBtn = document.getElementById('save-btn');
     if (saveBtn) saveBtn.disabled = false;
@@ -164,6 +162,40 @@ html<!DOCTYPE html>
         <button style="width:30px;height:36px;border-radius:var(--r-sm);border:1px solid var(--border2);background:none;cursor:pointer;color:var(--txt3);font-size:14px;flex-shrink:0;" onclick="delQuestion(${i})"><i class="ti ti-trash"></i></button>
       </div>`).join('');
   }
+
+  function renderQTypeSelect() {
+    const sel = document.getElementById('qtype-select');
+    sel.innerHTML = questionSets.map(q => `<option value="${q.id}">${q.name}</option>`).join('');
+  }
+
+  function syncCurrentQuestionsFromDOM() {
+    if (!curQType) return;
+    const qInputs = document.querySelectorAll('#questions-list input');
+    questions = [...qInputs].map(el => el.value.trim()).filter(q => q);
+    const set = questionSets.find(q => q.id === curQType);
+    if (set) set.questions = questions;
+  }
+
+  window.switchQType = function(id) {
+    syncCurrentQuestionsFromDOM();
+    curQType = id;
+    const set = questionSets.find(q => q.id === id);
+    questions = set?.questions ? [...set.questions] : [];
+    const sel = document.getElementById('qtype-select');
+    if (sel) sel.value = id;
+    renderQuestions();
+  };
+
+  window.addQType = async function() {
+    const name = prompt('새 모임 종류 이름을 입력하세요 (예: 돌싱모임)');
+    if (!name || !name.trim()) return;
+    syncCurrentQuestionsFromDOM();
+    const id = 'qs_' + Date.now();
+    questionSets.push({ id, name: name.trim(), questions: [] });
+    await saveQuestionSet(id, { name: name.trim(), questions: [] });
+    renderQTypeSelect();
+    switchQType(id);
+  };
 
   window.addQuestion = function() {
     questions.push('');
@@ -222,10 +254,14 @@ html<!DOCTYPE html>
       if (p) { const v = p.value.trim(); m.isUnlimited = v==='무제한'; m.price = m.isUnlimited?'':v; }
     });
     await saveMenus(allMenus);
-    // 질문 저장 - DOM에서 현재 입력값 읽기
+    // 질문 저장 - DOM에서 현재 입력값 읽기 → 현재 선택된 모임 종류의 질문지에 저장
     const qInputs = document.querySelectorAll('#questions-list input');
     if (qInputs.length > 0) {
       questions = [...qInputs].map(el => el.value.trim()).filter(q => q);
+    }
+    const curSet = questionSets.find(q => q.id === curQType);
+    if (curQType) {
+      await saveQuestionSet(curQType, { name: curSet?.name || '일반모임', questions });
     }
     const catNames = {
       mix:    document.getElementById('cat-mix').value.trim()    || '하이볼',
@@ -241,7 +277,7 @@ html<!DOCTYPE html>
       eventDesc:   document.getElementById('match-event-desc').value.trim(),
       note:        document.getElementById('match-note').value.trim(),
     };
-    await saveSettings({ questions, catNames, matchBanner });
+    await saveSettings({ catNames, matchBanner });
     const ok = document.getElementById('save-ok');
     ok.classList.add('show');
     setTimeout(() => { ok.classList.remove('show'); location.href='dashboard.html'; }, 900);
