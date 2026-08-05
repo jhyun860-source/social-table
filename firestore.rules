@@ -43,5 +43,11 @@ service cloud.firestore {
       allow read:  if true;
       allow write: if isLoggedIn();
     }
+
+    // 모임 종류별 질문지 - 읽기 공개 (참여자 프로필/카드 화면 로드), 쓰기는 관리자만
+    match /questionSets/{id} {
+      allow read:  if true;
+      allow write: if isLoggedIn();
+    }
   }
 }
