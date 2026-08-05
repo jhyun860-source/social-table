@@ -205,16 +205,10 @@ async function getMyZzims(fromId, eventId) {
 
 // 찜 추가
 async function addZzim(fromId, toId, eventId) {
-  // 중복 방지
-  const existing = await getDocs(
-    query(COL.zzims(),
-      where('fromId', '==', fromId),
-      where('toId',   '==', toId),
-      where('eventId','==', eventId)
-    )
-  );
-  if (!existing.empty) return;
-  await addDoc(COL.zzims(), {
+  // 결정론적 문서 ID — 같은 (event, from, to) 조합은 항상 같은 문서를 가리키므로
+  // 하트를 연타해 addZzim이 동시에 여러 번 실행돼도 문서가 중복 생성될 수 없음
+  const zzimId = `${eventId}_${fromId}_${toId}`;
+  await setDoc(doc(db, 'zzims', zzimId), {
     fromId, toId, eventId,
     createdAt: serverTimestamp(),
   });
