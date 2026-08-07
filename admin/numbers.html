@@ -43,29 +43,30 @@
 </div>
 
 <script type="module">
-  import { onAdminAuthChange, adminLogout, getEvents, getEvent, getParticipants, watchParticipants, updateParticipantNumber, numLabel, deleteParticipant, getSettings } from '../js/data.js';
+  import { onAdminAuthChange, adminLogout, getEvents, getEvent, getParticipants, watchParticipants, updateParticipantNumber, numLabel, deleteParticipant, getSettings, getQuestionSet } from '../js/data.js';
 
   const params = new URLSearchParams(location.search);
   let curEv = params.get('event') || '';
   let curMaxF = 0;
   let curMaxM = 0;
   let qLabels = [];
-  let qLabelsReady = false;
 
-  // 설정에서 질문 라벨 로드
-  const loadQLabels = (async () => {
+  // 선택된 모임의 questionSetId에 맞는 질문 라벨 로드 (모임 바뀌면 다시 호출됨)
+  async function loadQLabels(ev) {
     try {
-      const settings = await getSettings();
-      if (settings?.questions?.length) {
-        qLabels = settings.questions;
-      } else {
-        qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
+      const qset = await getQuestionSet(ev?.questionSetId || 'general');
+      if (qset?.questions?.length) {
+        qLabels = qset.questions;
+        return;
       }
+      // 모임종류별 질문지가 없는 옛날 모임 대비 - 기존 전역 설정으로 폴백
+      const settings = await getSettings();
+      qLabels = settings?.questions?.length ? settings.questions
+        : ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
     } catch(e) {
       qLabels = ['좋아하는 음식','좋아하는 음악','나와 친해지려면','좋아하는 사람 공통점','연락 스타일','여행 스타일','중요하게 보는 센스','첫인상에서 보는 것','같이 하면 친해지는 것','웃긴 습관'];
     }
-    qLabelsReady = true;
-  })();
+  }
   let allPtsF = [], allPtsM = [];
 
   onAdminAuthChange(async user => {
@@ -86,6 +87,7 @@
     const ev = await getEvent(id);
     curMaxF = ev?.maxF || 0;
     curMaxM = ev?.maxM || 0;
+    await loadQLabels(ev);
     allPtsF = await getParticipants(id, 'f');
     allPtsM = await getParticipants(id, 'm');
     renderTable('f', allPtsF);
@@ -166,7 +168,6 @@
 
   // 참여자 프로필 보기
   window.showProfile = async function(pid) {
-    await loadQLabels;
     const all = [...allPtsF, ...allPtsM];
     const p = all.find(x => x.id === pid);
     if (!p) return;
